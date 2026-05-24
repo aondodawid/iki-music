@@ -88,3 +88,23 @@ npm run deploy:wrangler
 - Propose change: `openspec new change <name>`
 - Implement change: `openspec instructions apply --change <name> --json`
 - Archive change: `openspec archive <name> -y`
+
+## Agent Skills
+
+### `react-best-practices`
+
+Use this skill for React/Next.js performance-focused work, especially when:
+
+- writing or refactoring React components
+- reviewing rendering and re-render behavior
+- optimizing bundle size, imports, and dynamic loading
+- improving async/data-fetching flow to avoid waterfalls
+
+Skill files are available in:
+
+- `.github/skills/react-best-practices`
+- `.claude/skills/react-best-practices`
+
+Entry point:
+
+- `.github/skills/react-best-practices/SKILL.md`
