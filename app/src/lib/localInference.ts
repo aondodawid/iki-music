@@ -114,6 +114,18 @@ async function getMusicGen(modelName: string): Promise<CachedMusicGen> {
     await getTransformersModule();
 
   const envWithRemoteFlag = env as unknown as { allowRemoteModels?: boolean };
+  const envWithRemoteHost = env as unknown as {
+    remoteHost?: string;
+    remotePathTemplate?: string;
+  };
+
+  if (typeof globalThis !== "undefined" && "location" in globalThis) {
+    const location = (globalThis as { location?: Location }).location;
+    if (location?.origin) {
+      envWithRemoteHost.remoteHost = `${location.origin}/hf-v2/`;
+      envWithRemoteHost.remotePathTemplate = "{model}/resolve/{revision}/";
+    }
+  }
 
   const loadFromPretrained = async (
     localFilesOnly: boolean,

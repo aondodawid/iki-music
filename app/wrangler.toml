@@ -1,5 +1,7 @@
 name = "iki-music-app"
 compatibility_date = "2026-05-24"
+main = "./worker.mjs"
 
 [assets]
 directory = "./dist"
+binding = "ASSETS"
