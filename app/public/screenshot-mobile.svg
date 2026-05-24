@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844" role="img" aria-label="IKI Music mobile screenshot">
+  <rect width="390" height="844" fill="#020617" />
+  <rect x="20" y="24" width="350" height="796" rx="28" fill="#0f172a" stroke="#334155" />
+  <rect x="44" y="64" width="302" height="56" rx="10" fill="#1e293b" />
+  <rect x="44" y="144" width="302" height="96" rx="12" fill="#0b1220" stroke="#1e293b" />
+  <rect x="44" y="260" width="302" height="96" rx="12" fill="#0b1220" stroke="#1e293b" />
+  <rect x="44" y="376" width="302" height="96" rx="12" fill="#0b1220" stroke="#1e293b" />
+  <rect x="44" y="700" width="200" height="64" rx="12" fill="#0ea5e9" />
+</svg>

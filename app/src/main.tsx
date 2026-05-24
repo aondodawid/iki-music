@@ -1,0 +1,23 @@
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { registerSW } from "virtual:pwa-register";
+import "./index.css";
+import App from "./App.tsx";
+
+if (import.meta.env.MODE !== "test") {
+  registerSW({
+    immediate: true,
+    onOfflineReady() {
+      console.info("PWA offline cache is ready.");
+    },
+    onNeedRefresh() {
+      console.info("PWA update available. Refresh to use the latest version.");
+    },
+  });
+}
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);

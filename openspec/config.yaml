@@ -1,0 +1,16 @@
+schema: spec-driven
+
+context: |
+  Tech stack: React, TypeScript, Transformers.js, Hugging Face, Wrangler, Tailwind CSS, shadcn/ui
+  Accessibility: WCAG compliance is required for UI and interaction changes
+
+rules:
+  proposal:
+    - Include a rollback plan
+    - Identify impacted users/teams
+  specs:
+    - Write scenarios in Given/When/Then format
+  design:
+    - Include sequence or data-flow details for non-trivial changes
+  tasks:
+    - Include at least one explicit test/verification task
