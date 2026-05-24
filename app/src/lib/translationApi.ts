@@ -34,6 +34,12 @@ interface BrowserAi {
   translator?: AiTranslatorFactory;
 }
 
+let cachedDetectorPromise: Promise<AiLanguageDetector | null> | null = null;
+const cachedTranslatorPromises = new Map<
+  string,
+  Promise<AiTranslator | null>
+>();
+
 function getBrowserAi(): BrowserAi | null {
   if (typeof globalThis === "undefined") {
     return null;
@@ -70,17 +76,29 @@ function isProbablyEnglish(text: string): boolean {
 }
 
 async function detectLanguage(input: string): Promise<string | null> {
-  const ai = getBrowserAi();
-  const createDetector = ai?.languageDetector?.create;
+  let detectorPromise = cachedDetectorPromise;
 
-  if (!createDetector) {
-    return null;
+  if (!detectorPromise) {
+    const ai = getBrowserAi();
+    const createDetector = ai?.languageDetector?.create;
+
+    if (!createDetector) {
+      return null;
+    }
+
+    detectorPromise = createDetector()
+      .then((detector) => detector)
+      .catch(() => null);
+    cachedDetectorPromise = detectorPromise;
   }
 
   try {
-    const detector = await createDetector();
+    const detector = await detectorPromise;
+    if (!detector) {
+      return null;
+    }
+
     const detection = await detector.detect(input);
-    detector.destroy?.();
 
     const first = Array.isArray(detection) ? detection[0] : detection;
     const detected = first?.detectedLanguage ?? first?.language;
@@ -98,32 +116,45 @@ async function detectLanguage(input: string): Promise<string | null> {
 async function buildTranslator(
   sourceLanguage: string,
 ): Promise<AiTranslator | null> {
+  const cacheKey = sourceLanguage.toLowerCase();
+  const cachedTranslator = cachedTranslatorPromises.get(cacheKey);
+  if (cachedTranslator) {
+    return cachedTranslator;
+  }
+
   const ai = getBrowserAi();
   const translatorApi = ai?.translator;
+  const createTranslator = translatorApi?.create;
 
-  if (!translatorApi?.create) {
+  if (!createTranslator) {
     return null;
   }
 
-  try {
-    if (translatorApi.canTranslate) {
-      const availability = await translatorApi.canTranslate({
+  const translatorPromise = (async () => {
+    try {
+      if (translatorApi.canTranslate) {
+        const availability = await translatorApi.canTranslate({
+          sourceLanguage,
+          targetLanguage: "en",
+        });
+
+        if (availability === false || availability === "no") {
+          return null;
+        }
+      }
+
+      return await createTranslator({
         sourceLanguage,
         targetLanguage: "en",
       });
-
-      if (availability === false || availability === "no") {
-        return null;
-      }
+    } catch {
+      cachedTranslatorPromises.delete(cacheKey);
+      return null;
     }
+  })();
 
-    return await translatorApi.create({
-      sourceLanguage,
-      targetLanguage: "en",
-    });
-  } catch {
-    return null;
-  }
+  cachedTranslatorPromises.set(cacheKey, translatorPromise);
+  return translatorPromise;
 }
 
 export async function translateToEnglishIfNeeded(
@@ -151,7 +182,6 @@ export async function translateToEnglishIfNeeded(
 
   try {
     const translated = await Promise.resolve(translator.translate(text));
-    translator.destroy?.();
 
     if (typeof translated === "string" && translated.trim().length > 0) {
       return translated;

@@ -1,12 +1,9 @@
-import {
-  AutoTokenizer,
-  MusicgenForConditionalGeneration,
-  RawAudio,
-} from "@huggingface/transformers";
-
 import { getAiEnvConfig } from "./env";
-import type { ProgressInfo } from "@huggingface/transformers";
 import type { MusicGenQualityPreset } from "./types";
+
+type TransformersModule = typeof import("@huggingface/transformers");
+type AutoTokenizerType = TransformersModule["AutoTokenizer"];
+type MusicgenModelType = TransformersModule["MusicgenForConditionalGeneration"];
 
 export interface LocalInferenceInput {
   prompt: string;
@@ -22,10 +19,8 @@ export interface LocalInferenceOutput {
 }
 
 interface CachedMusicGen {
-  tokenizer: Awaited<ReturnType<typeof AutoTokenizer.from_pretrained>>;
-  model: Awaited<
-    ReturnType<typeof MusicgenForConditionalGeneration.from_pretrained>
-  >;
+  tokenizer: Awaited<ReturnType<AutoTokenizerType["from_pretrained"]>>;
+  model: Awaited<ReturnType<MusicgenModelType["from_pretrained"]>>;
 }
 
 export interface MusicGenLoadProgress {
@@ -62,6 +57,15 @@ const MUSICGEN_GUIDANCE_SCALE: Record<MusicGenQualityPreset, number> = {
 };
 let cachedMusicGen: CachedMusicGen | null = null;
 let cachedModelName: string | null = null;
+let cachedTransformersModulePromise: Promise<TransformersModule> | null = null;
+
+async function getTransformersModule(): Promise<TransformersModule> {
+  if (!cachedTransformersModulePromise) {
+    cachedTransformersModulePromise = import("@huggingface/transformers");
+  }
+
+  return cachedTransformersModulePromise;
+}
 
 function clampDurationSeconds(value: number | undefined): number {
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -106,16 +110,18 @@ async function getMusicGen(modelName: string): Promise<CachedMusicGen> {
     return cachedMusicGen;
   }
 
+  const { AutoTokenizer, MusicgenForConditionalGeneration } =
+    await getTransformersModule();
+
   const emitProgress = (
     stage: MusicGenLoadProgress["stage"],
-    progressInfo: ProgressInfo,
+    progressInfo: unknown,
   ): void => {
     if (!progressReporter) {
       return;
     }
 
     const payload = progressInfo as Record<string, unknown>;
-
     const loaded = typeof payload.loaded === "number" ? payload.loaded : 0;
     const total = typeof payload.total === "number" ? payload.total : 0;
     const progressValue =
@@ -200,6 +206,7 @@ export async function generateWithTransformers(
   }
 
   const { tokenizer, model } = await getMusicGen(config.transformersModel);
+  const { RawAudio } = await getTransformersModule();
   const inputs = tokenizer(input.prompt);
   const audioValues = await model.generate({
     ...inputs,

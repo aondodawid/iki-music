@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { buildChatPromptRequest, buildLiveJamRequest } from "./lib/adapters";
 import { isFeatureEnabled, setFeatureFlag } from "./lib/featureFlags";
@@ -57,6 +57,33 @@ import type {
   ThemeMode,
   UiLanguage,
 } from "@/features/studio/types";
+
+function scheduleIdleWrite(write: () => void): () => void {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  if (
+    typeof window.requestIdleCallback === "function" &&
+    typeof window.cancelIdleCallback === "function"
+  ) {
+    const idleId = window.requestIdleCallback(() => {
+      write();
+    });
+
+    return () => {
+      window.cancelIdleCallback(idleId);
+    };
+  }
+
+  const timeoutId = globalThis.setTimeout(() => {
+    write();
+  }, 0);
+
+  return () => {
+    globalThis.clearTimeout(timeoutId);
+  };
+}
 
 function App() {
   const orchestrator = useMemo(() => new GenerationOrchestrator(), []);
@@ -208,12 +235,12 @@ function App() {
   }, [orchestrator, ui.modelLoadFailed]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    return scheduleIdleWrite(() => {
       window.localStorage.setItem(
         MUSICGEN_QUALITY_STORAGE_KEY,
         musicGenQualityPreset,
       );
-    }
+    });
   }, [musicGenQualityPreset]);
 
   useEffect(() => {
@@ -221,9 +248,12 @@ function App() {
       return;
     }
 
-    window.localStorage.setItem(THEME_STORAGE_KEY, themeMode);
     document.documentElement.classList.toggle("dark", themeMode === "dark");
     document.documentElement.style.colorScheme = themeMode;
+
+    return scheduleIdleWrite(() => {
+      window.localStorage.setItem(THEME_STORAGE_KEY, themeMode);
+    });
   }, [themeMode]);
 
   useEffect(() => {
@@ -231,8 +261,11 @@ function App() {
       return;
     }
 
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
     document.documentElement.lang = language;
+
+    return scheduleIdleWrite(() => {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    });
   }, [language]);
 
   useEffect(() => {
@@ -250,7 +283,7 @@ function App() {
     };
   }, []);
 
-  async function handleInstallApp() {
+  const handleInstallApp = useCallback(async () => {
     if (!installPrompt) {
       setInstallHint(ui.installUnavailable);
       return;
@@ -260,19 +293,19 @@ function App() {
     await installPrompt.userChoice;
     setInstallPrompt(null);
     setInstallHint(null);
-  }
+  }, [installPrompt, ui.installUnavailable]);
 
-  function handleToggleTheme() {
+  const handleToggleTheme = useCallback(() => {
     setThemeMode((currentTheme) =>
       currentTheme === "light" ? "dark" : "light",
     );
-  }
+  }, []);
 
-  function handleToggleLanguage() {
+  const handleToggleLanguage = useCallback(() => {
     setLanguage((currentLanguage) => (currentLanguage === "en" ? "pl" : "en"));
     setInstallHint(null);
     setTimelineNotice(null);
-  }
+  }, []);
 
   const effectiveMode =
     !isLiveEnabled && mode === "live-jam" && isChatEnabled
@@ -287,15 +320,15 @@ function App() {
     : smartChatDurationCap;
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    return scheduleIdleWrite(() => {
       window.localStorage.setItem(
         CHAT_DURATION_OVERRIDE_STORAGE_KEY,
         chatDurationOverride ? "1" : "0",
       );
-    }
+    });
   }, [chatDurationOverride]);
 
-  async function handleLiveEnable() {
+  const handleLiveEnable = useCallback(async () => {
     setValidationError(null);
     const request = buildLiveJamRequest({
       sessionId: "session-live",
@@ -305,39 +338,59 @@ function App() {
       forceFailure: liveFailure,
     });
     await orchestrator.generate(request);
-  }
+  }, [
+    liveDurationSeconds,
+    liveFailure,
+    liveNotes,
+    musicGenQualityPreset,
+    orchestrator,
+  ]);
 
-  function handleLiveStop() {
+  const handleLiveStop = useCallback(() => {
     orchestrator.reset();
     setPlayingId(null);
-  }
+  }, [orchestrator]);
 
-  async function handleChatSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setValidationError(null);
+  const handleChatSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setValidationError(null);
 
-    try {
-      const request = buildChatPromptRequest({
-        sessionId: "session-chat",
-        prompt: chatPrompt,
-        durationSeconds: chatDurationSeconds,
-        bpm: chatBpm.trim().length === 0 ? undefined : Number(chatBpm),
-        instrumentalOnly: chatInstrumentalOnly,
-        includeDrums: chatIncludeDrums,
-        musicGenQualityPreset,
-        forceFailure: chatFailure,
-      });
-      await orchestrator.generate(request);
-    } catch (error) {
-      setValidationError(
-        error instanceof Error
-          ? localizeErrorMessage(error.message, language)
-          : ui.invalidPrompt,
-      );
-    }
-  }
+      try {
+        const request = buildChatPromptRequest({
+          sessionId: "session-chat",
+          prompt: chatPrompt,
+          durationSeconds: chatDurationSeconds,
+          bpm: chatBpm.trim().length === 0 ? undefined : Number(chatBpm),
+          instrumentalOnly: chatInstrumentalOnly,
+          includeDrums: chatIncludeDrums,
+          musicGenQualityPreset,
+          forceFailure: chatFailure,
+        });
+        await orchestrator.generate(request);
+      } catch (error) {
+        setValidationError(
+          error instanceof Error
+            ? localizeErrorMessage(error.message, language)
+            : ui.invalidPrompt,
+        );
+      }
+    },
+    [
+      chatBpm,
+      chatDurationSeconds,
+      chatFailure,
+      chatIncludeDrums,
+      chatInstrumentalOnly,
+      chatPrompt,
+      language,
+      musicGenQualityPreset,
+      orchestrator,
+      ui.invalidPrompt,
+    ],
+  );
 
-  async function handleDeleteEntry(entry: GenerationResult) {
+  const handleDeleteEntry = useCallback(async (entry: GenerationResult) => {
     if (entry.audio?.url?.startsWith("blob:")) {
       URL.revokeObjectURL(entry.audio.url);
     }
@@ -351,9 +404,9 @@ function App() {
         // Keep UI consistent even when persistence delete fails.
       });
     }
-  }
+  }, []);
 
-  async function handleDeleteAllEntries() {
+  const handleDeleteAllEntries = useCallback(async () => {
     timelineRef.current.forEach((entry) => {
       if (entry.audio?.url?.startsWith("blob:")) {
         URL.revokeObjectURL(entry.audio.url);
@@ -369,9 +422,9 @@ function App() {
         // Keep UI consistent even when persistence clear fails.
       });
     }
-  }
+  }, []);
 
-  async function handleExportLibrary() {
+  const handleExportLibrary = useCallback(async () => {
     setTimelineNotice(null);
 
     const payload: ExportedTimelinePayload = {
@@ -399,60 +452,107 @@ function App() {
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
-  }
+  }, []);
 
-  function handleImportLibraryClick() {
+  const handleImportLibraryClick = useCallback(() => {
     setTimelineNotice(null);
     importInputRef.current?.click();
-  }
+  }, []);
 
-  async function handleImportLibrary(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
+  const handleImportLibrary = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
 
-    if (!file) {
-      return;
-    }
-
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text) as Partial<ExportedTimelinePayload>;
-
-      if (parsed.version !== 1 || !Array.isArray(parsed.entries)) {
-        throw new Error("Invalid import payload version.");
+      if (!file) {
+        return;
       }
 
-      const validEntries = parsed.entries.filter(isValidExportedTimelineEntry);
-      if (validEntries.length !== parsed.entries.length) {
-        throw new Error("Import payload contains invalid timeline entries.");
-      }
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text) as Partial<ExportedTimelinePayload>;
 
-      const restoredTimeline = await Promise.all(
-        validEntries.map((entry) => exportEntryToGenerationResult(entry)),
-      );
-      restoredTimeline.sort((a, b) => b.createdAt - a.createdAt);
-
-      timelineRef.current.forEach((entry) => {
-        if (entry.audio?.url?.startsWith("blob:")) {
-          URL.revokeObjectURL(entry.audio.url);
+        if (parsed.version !== 1 || !Array.isArray(parsed.entries)) {
+          throw new Error("Invalid import payload version.");
         }
-      });
 
-      setPlayingId(null);
-      setTimeline(restoredTimeline);
+        const validEntries = parsed.entries.filter(isValidExportedTimelineEntry);
+        if (validEntries.length !== parsed.entries.length) {
+          throw new Error("Import payload contains invalid timeline entries.");
+        }
 
-      if (import.meta.env.MODE !== "test") {
-        await clearPersistedTimeline();
-        await Promise.all(
-          restoredTimeline.map((entry) => persistTimelineEntry(entry)),
+        const restoredTimeline = await Promise.all(
+          validEntries.map((entry) => exportEntryToGenerationResult(entry)),
+        );
+        restoredTimeline.sort((a, b) => b.createdAt - a.createdAt);
+
+        timelineRef.current.forEach((entry) => {
+          if (entry.audio?.url?.startsWith("blob:")) {
+            URL.revokeObjectURL(entry.audio.url);
+          }
+        });
+
+        setPlayingId(null);
+        setTimeline(restoredTimeline);
+
+        if (import.meta.env.MODE !== "test") {
+          await clearPersistedTimeline();
+          await Promise.all(
+            restoredTimeline.map((entry) => persistTimelineEntry(entry)),
+          );
+        }
+
+        setTimelineNotice(ui.importCompleted(restoredTimeline.length));
+      } catch {
+        setTimelineNotice(ui.importInvalid);
+      }
+    },
+    [ui.importCompleted, ui.importInvalid],
+  );
+
+  const handleInstallAppClick = useCallback(() => {
+    void handleInstallApp();
+  }, [handleInstallApp]);
+
+  const handleImportLibraryChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      void handleImportLibrary(event);
+    },
+    [handleImportLibrary],
+  );
+
+  const handleExportLibraryClick = useCallback(() => {
+    void handleExportLibrary();
+  }, [handleExportLibrary]);
+
+  const handleDeleteAllEntriesClick = useCallback(() => {
+    void handleDeleteAllEntries();
+  }, [handleDeleteAllEntries]);
+
+  const handleDeleteEntryClick = useCallback(
+    (entry: GenerationResult) => {
+      void handleDeleteEntry(entry);
+    },
+    [handleDeleteEntry],
+  );
+
+  const handleTogglePreview = useCallback((entryId: string) => {
+    setPlayingId((current) => (current === entryId ? null : entryId));
+  }, []);
+
+  const handleToggleDurationOverride = useCallback(() => {
+    setChatDurationOverride((currentOverride) => {
+      const nextOverride = !currentOverride;
+      if (!nextOverride) {
+        setChatDurationSeconds((currentSeconds) =>
+          currentSeconds > smartChatDurationCap
+            ? smartChatDurationCap
+            : currentSeconds,
         );
       }
-
-      setTimelineNotice(ui.importCompleted(restoredTimeline.length));
-    } catch {
-      setTimelineNotice(ui.importInvalid);
-    }
-  }
+      return nextOverride;
+    });
+  }, [smartChatDurationCap]);
 
   if (modelLoadStatus === "loading") {
     return (
@@ -462,9 +562,7 @@ function App() {
         installPromptAvailable={Boolean(installPrompt)}
         installHint={installHint}
         onToggleTheme={handleToggleTheme}
-        onInstallApp={() => {
-          void handleInstallApp();
-        }}
+        onInstallApp={handleInstallAppClick}
         onToggleLanguage={handleToggleLanguage}
         modelLoadProgress={modelLoadProgress}
         modelLoadStage={modelLoadStage}
@@ -480,9 +578,7 @@ function App() {
         installPromptAvailable={Boolean(installPrompt)}
         installHint={installHint}
         onToggleTheme={handleToggleTheme}
-        onInstallApp={() => {
-          void handleInstallApp();
-        }}
+        onInstallApp={handleInstallAppClick}
         onToggleLanguage={handleToggleLanguage}
         modelLoadError={modelLoadError}
       />
@@ -510,9 +606,7 @@ function App() {
         installPromptAvailable={Boolean(installPrompt)}
         installHint={installHint}
         onToggleTheme={handleToggleTheme}
-        onInstallApp={() => {
-          void handleInstallApp();
-        }}
+        onInstallApp={handleInstallAppClick}
         onToggleLanguage={handleToggleLanguage}
       />
 
@@ -567,19 +661,7 @@ function App() {
             onSubmit={handleChatSubmit}
             onChangePrompt={setChatPrompt}
             onChangeDuration={setChatDurationSeconds}
-            onToggleDurationOverride={() => {
-              setChatDurationOverride((currentOverride) => {
-                const nextOverride = !currentOverride;
-                if (!nextOverride) {
-                  setChatDurationSeconds((currentSeconds) =>
-                    currentSeconds > smartChatDurationCap
-                      ? smartChatDurationCap
-                      : currentSeconds,
-                  );
-                }
-                return nextOverride;
-              });
-            }}
+            onToggleDurationOverride={handleToggleDurationOverride}
             onChangeBpm={setChatBpm}
             onChangeInstrumentalOnly={setChatInstrumentalOnly}
             onChangeIncludeDrums={setChatIncludeDrums}
@@ -607,21 +689,11 @@ function App() {
         importInputRef={importInputRef}
         playingId={playingId}
         onImportClick={handleImportLibraryClick}
-        onImportChange={(event) => {
-          void handleImportLibrary(event);
-        }}
-        onExport={() => {
-          void handleExportLibrary();
-        }}
-        onDeleteAll={() => {
-          void handleDeleteAllEntries();
-        }}
-        onDeleteEntry={(entry) => {
-          void handleDeleteEntry(entry);
-        }}
-        onTogglePreview={(entryId) =>
-          setPlayingId((current) => (current === entryId ? null : entryId))
-        }
+        onImportChange={handleImportLibraryChange}
+        onExport={handleExportLibraryClick}
+        onDeleteAll={handleDeleteAllEntriesClick}
+        onDeleteEntry={handleDeleteEntryClick}
+        onTogglePreview={handleTogglePreview}
       />
     </main>
   );

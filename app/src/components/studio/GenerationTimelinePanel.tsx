@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { ChangeEvent, RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import type { UiText } from "@/features/studio/types";
@@ -17,7 +18,7 @@ interface GenerationTimelinePanelProps {
   onTogglePreview: (entryId: string) => void;
 }
 
-export function GenerationTimelinePanel({
+export const GenerationTimelinePanel = memo(function GenerationTimelinePanel({
   ui,
   timeline,
   timelineNotice,
@@ -116,4 +117,4 @@ export function GenerationTimelinePanel({
       </ul>
     </section>
   );
-}
+});

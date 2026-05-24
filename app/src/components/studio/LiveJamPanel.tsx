@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import type { UiText } from "@/features/studio/types";
 
@@ -15,7 +16,7 @@ interface LiveJamPanelProps {
   onStop: () => void;
 }
 
-export function LiveJamPanel({
+export const LiveJamPanel = memo(function LiveJamPanel({
   ui,
   liveNotes,
   liveDurationSeconds,
@@ -88,4 +89,4 @@ export function LiveJamPanel({
       </div>
     </>
   );
-}
+});

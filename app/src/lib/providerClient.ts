@@ -17,12 +17,15 @@ export async function runProviderRequest(
   }
 
   const slowPathMs = request.kind === "live-jam" ? 900 : 450;
-  await wait(slowPathMs);
-
   const normalizedPrompt =
     request.kind === "chat-generate"
-      ? await translateToEnglishIfNeeded(request.prompt)
-      : null;
+      ? (
+          await Promise.all([
+            wait(slowPathMs),
+            translateToEnglishIfNeeded(request.prompt),
+          ])
+        )[1]
+      : (await wait(slowPathMs), null);
 
   const chatPromptWithSettings =
     request.kind === "chat-generate"

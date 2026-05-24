@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { HARD_MAX_CHAT_DURATION_SECONDS } from "@/features/studio/constants";
@@ -27,7 +28,7 @@ interface ChatGeneratePanelProps {
   onChangeFailure: (value: boolean) => void;
 }
 
-export function ChatGeneratePanel({
+export const ChatGeneratePanel = memo(function ChatGeneratePanel({
   ui,
   chatPrompt,
   chatDurationSeconds,
@@ -164,4 +165,4 @@ export function ChatGeneratePanel({
       )}
     </>
   );
-}
+});
