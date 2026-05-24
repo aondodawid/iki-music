@@ -290,6 +290,12 @@ async function getMusicGen(modelName: string): Promise<CachedMusicGen> {
   cachedMusicGen = loaded;
   cachedModelName = modelName;
 
+  if (!cachedMusicGen) {
+    throw new Error(
+      `Failed to initialize MusicGen model artifacts for ${modelName}.`,
+    );
+  }
+
   return cachedMusicGen;
 }
 
