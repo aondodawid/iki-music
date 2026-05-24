@@ -110,8 +110,43 @@ async function getMusicGen(modelName: string): Promise<CachedMusicGen> {
     return cachedMusicGen;
   }
 
-  const { AutoTokenizer, MusicgenForConditionalGeneration } =
+  const { AutoTokenizer, MusicgenForConditionalGeneration, env } =
     await getTransformersModule();
+
+  const envWithRemoteFlag = env as unknown as { allowRemoteModels?: boolean };
+
+  const loadFromPretrained = async (
+    localFilesOnly: boolean,
+  ): Promise<CachedMusicGen> => {
+    const tokenizerOptions = {
+      local_files_only: localFilesOnly,
+      progress_callback: (progress: unknown) =>
+        emitProgress("tokenizer", progress),
+    } as Record<string, unknown>;
+
+    const modelOptions = {
+      local_files_only: localFilesOnly,
+      progress_callback: (progress: unknown) => emitProgress("model", progress),
+      dtype: {
+        text_encoder: "q8",
+        decoder_model_merged: "q8",
+        encodec_decode: "fp32",
+      },
+    } as Record<string, unknown>;
+
+    const [tokenizer, model] = await Promise.all([
+      AutoTokenizer.from_pretrained(
+        modelName,
+        tokenizerOptions as Parameters<AutoTokenizerType["from_pretrained"]>[1],
+      ),
+      MusicgenForConditionalGeneration.from_pretrained(
+        modelName,
+        modelOptions as Parameters<MusicgenModelType["from_pretrained"]>[1],
+      ),
+    ]);
+
+    return { tokenizer, model };
+  };
 
   const emitProgress = (
     stage: MusicGenLoadProgress["stage"],
@@ -142,25 +177,21 @@ async function getMusicGen(modelName: string): Promise<CachedMusicGen> {
     });
   };
 
-  const tokenizer = await AutoTokenizer.from_pretrained(modelName, {
-    progress_callback: (progress) => emitProgress("tokenizer", progress),
-  });
-  const model = await MusicgenForConditionalGeneration.from_pretrained(
-    modelName,
-    {
-      progress_callback: (progress) => emitProgress("model", progress),
-      dtype: {
-        text_encoder: "q8",
-        decoder_model_merged: "q8",
-        encodec_decode: "fp32",
-      },
-    },
-  );
+  // Prefer cached artifacts first; download only when cache is not available yet.
+  let loaded: CachedMusicGen | null = null;
+  const previousAllowRemoteModels = envWithRemoteFlag.allowRemoteModels;
 
-  cachedMusicGen = {
-    tokenizer,
-    model,
-  };
+  try {
+    envWithRemoteFlag.allowRemoteModels = false;
+    loaded = await loadFromPretrained(true);
+  } catch {
+    envWithRemoteFlag.allowRemoteModels = true;
+    loaded = await loadFromPretrained(false);
+  } finally {
+    envWithRemoteFlag.allowRemoteModels = previousAllowRemoteModels;
+  }
+
+  cachedMusicGen = loaded;
   cachedModelName = modelName;
 
   return cachedMusicGen;
