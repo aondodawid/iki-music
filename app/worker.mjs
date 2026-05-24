@@ -34,9 +34,26 @@ async function proxyHuggingFaceRequest(request, prefix) {
   }
 
   const upstreamUrl = `${HF_HOST}/${path}${url.search}`;
+  const passthroughHeaderNames = [
+    "accept",
+    "accept-language",
+    "range",
+    "if-none-match",
+    "if-modified-since",
+    "cache-control",
+  ];
+  const upstreamHeaders = new Headers();
+
+  for (const headerName of passthroughHeaderNames) {
+    const value = request.headers.get(headerName);
+    if (value) {
+      upstreamHeaders.set(headerName, value);
+    }
+  }
+
   const upstreamRequest = new Request(upstreamUrl, {
     method: request.method,
-    headers: request.headers,
+    headers: upstreamHeaders,
     redirect: "follow",
   });
 
