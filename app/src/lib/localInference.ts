@@ -47,6 +47,7 @@ const MUSICGEN_MODEL_FALLBACKS: Record<string, string[]> = {
 };
 const REMOTE_MODEL_LOAD_RETRY_ATTEMPTS = 3;
 const REMOTE_MODEL_LOAD_RETRY_DELAY_MS = 800;
+const MUSICGEN_PRELOAD_TIMEOUT_MS = 45000;
 const MUSICGEN_MAX_NEW_TOKENS = 1503;
 const MUSICGEN_TOKENS_PER_SECOND =
   MUSICGEN_MAX_NEW_TOKENS / MAX_DURATION_SECONDS;
@@ -119,8 +120,27 @@ function isRetriableModelLoadError(error: unknown): boolean {
     message.includes("network") ||
     message.includes("failed to fetch") ||
     message.includes("tokenizer_class") ||
-    message.includes("cannot read properties of undefined")
+    message.includes("cannot read properties of undefined") ||
+    message.includes("timed out")
   );
+}
+
+async function withTimeout<T>(operation: Promise<T>, ms: number): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`MusicGen preload timed out after ${ms}ms.`));
+    }, ms);
+  });
+
+  try {
+    return await Promise.race([operation, timeoutPromise]);
+  } finally {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 async function getMusicGen(modelName: string): Promise<CachedMusicGen> {
@@ -342,7 +362,10 @@ export async function preloadMusicGenModel(): Promise<void> {
   );
 
   try {
-    await getMusicGenWithFallback(config.transformersModel);
+    await withTimeout(
+      getMusicGenWithFallback(config.transformersModel),
+      MUSICGEN_PRELOAD_TIMEOUT_MS,
+    );
     forceSimulationMode = false;
   } catch (error) {
     if (!isRetriableModelLoadError(error)) {
