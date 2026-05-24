@@ -1,25 +1,6 @@
 const HF_PREFIXES = ["/hf-v2/", "/hf/"];
 const HF_HOST = "https://huggingface.co";
 
-function buildUpstreamHeaders(requestHeaders) {
-  const headers = new Headers();
-
-  for (const key of [
-    "accept",
-    "accept-language",
-    "range",
-    "if-none-match",
-    "if-modified-since",
-  ]) {
-    const value = requestHeaders.get(key);
-    if (value) {
-      headers.set(key, value);
-    }
-  }
-
-  return headers;
-}
-
 function withCorsPreflightHeaders(responseHeaders) {
   const headers = new Headers(responseHeaders);
   headers.set("Access-Control-Allow-Origin", "*");
@@ -55,7 +36,7 @@ async function proxyHuggingFaceRequest(request, prefix) {
   const upstreamUrl = `${HF_HOST}/${path}${url.search}`;
   const upstreamRequest = new Request(upstreamUrl, {
     method: request.method,
-    headers: buildUpstreamHeaders(request.headers),
+    headers: request.headers,
     redirect: "follow",
   });
 
