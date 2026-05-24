@@ -10,11 +10,11 @@ describe("adapters", () => {
     const high = buildLiveJamRequest({
       sessionId: "s-2",
       notes: "C G",
-      durationSeconds: 99,
+      durationSeconds: 999,
     });
 
     expect(low.durationSeconds).toBe(2);
-    expect(high.durationSeconds).toBe(12);
+    expect(high.durationSeconds).toBe(120);
   });
 
   it("uses default duration when missing", () => {
@@ -37,13 +37,13 @@ describe("adapters", () => {
     const high = buildChatPromptRequest({
       sessionId: "chat-2",
       prompt: "test",
-      durationSeconds: 99,
+      durationSeconds: 999,
       bpm: 300,
     });
 
     expect(low.durationSeconds).toBe(2);
     expect(low.bpm).toBe(60);
-    expect(high.durationSeconds).toBe(12);
+    expect(high.durationSeconds).toBe(120);
     expect(high.bpm).toBe(200);
   });
 

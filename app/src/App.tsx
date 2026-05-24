@@ -12,18 +12,212 @@ import {
 } from "./lib/localInference";
 
 type ModelLoadStatus = "loading" | "ready" | "failed";
+type ThemeMode = "light" | "dark";
+type UiLanguage = "pl" | "en";
+
 const MUSICGEN_QUALITY_STORAGE_KEY = "iki-music/musicgen-quality-preset";
 const THEME_STORAGE_KEY = "iki-music/theme";
+const LANGUAGE_STORAGE_KEY = "iki-music/language";
 
-type ThemeMode = "light" | "dark";
+interface UiText {
+  appTitle: string;
+  localPlayground: string;
+  appSubtitle: string;
+  installApp: string;
+  installUnavailable: string;
+  switchToLight: string;
+  switchToDark: string;
+  lightMode: string;
+  darkMode: string;
+  languageButton: string;
+  downloadingTokenizer: string;
+  downloadingModel: string;
+  modelReady: string;
+  modelLoadFailed: string;
+  fallbackActive: string;
+  reEnableAiModes: string;
+  generationMode: string;
+  liveJam: string;
+  chatGenerate: string;
+  speedQualityPreset: string;
+  presetSelectedInfo: (
+    label: string,
+    tokens: number,
+    guidance: number,
+  ) => string;
+  liveAccompaniment: string;
+  notesProgression: string;
+  previewDuration: (seconds: number) => string;
+  previewDurationAria: string;
+  simulateProviderFailure: string;
+  enable: string;
+  mute: string;
+  unmute: string;
+  chatPromptGeneration: string;
+  prompt: string;
+  generatedClipDuration: (seconds: number) => string;
+  chatDurationAria: string;
+  chatDurationHint: string;
+  targetBpm: string;
+  chatOptions: string;
+  instrumentalOnly: string;
+  includeDrums: string;
+  generateFromChat: string;
+  generatingResponse: string;
+  chatProgressAria: string;
+  generationStatus: string;
+  status: string;
+  error: string;
+  generatedTimeline: string;
+  generatedResults: string;
+  noGenerationsYet: string;
+  browserNoAudio: string;
+  pausePreview: string;
+  playPreview: string;
+  invalidPrompt: string;
+  emptyPrompt: string;
+  providerTemporaryFailure: string;
+}
+
+const UI_TEXT: Record<UiLanguage, UiText> = {
+  en: {
+    appTitle: "AI Music Studio",
+    localPlayground: "Local AI Music Playground",
+    appSubtitle: "Create music in live jam mode or from chat prompts.",
+    installApp: "Install app",
+    installUnavailable:
+      "Automatic install is not available yet. Use the browser menu to install this app.",
+    switchToLight: "Switch to light mode",
+    switchToDark: "Switch to dark mode",
+    lightMode: "Light mode",
+    darkMode: "Dark mode",
+    languageButton: "PL / EN",
+    downloadingTokenizer: "Downloading tokenizer",
+    downloadingModel: "Downloading MusicGen model",
+    modelReady: "MusicGen ready",
+    modelLoadFailed: "Failed to load MusicGen model.",
+    fallbackActive:
+      "AI generation modes are currently disabled. Fallback mode is active.",
+    reEnableAiModes: "Re-enable AI modes",
+    generationMode: "Generation mode",
+    liveJam: "Live Jam",
+    chatGenerate: "Chat Generate",
+    speedQualityPreset: "Speed / quality preset",
+    presetSelectedInfo: (label, tokens, guidance) =>
+      `${label} is selected. Estimated cost for a 6s clip: ~${tokens} tokens at guidance ${guidance}.`,
+    liveAccompaniment: "Live Accompaniment",
+    notesProgression: "Notes / progression",
+    previewDuration: (seconds) => `Preview duration: ${seconds}s`,
+    previewDurationAria: "Preview duration (seconds)",
+    simulateProviderFailure: "Simulate provider failure",
+    enable: "Enable",
+    mute: "Mute",
+    unmute: "Unmute",
+    chatPromptGeneration: "Chat Prompt Generation",
+    prompt: "Prompt",
+    generatedClipDuration: (seconds) => `Generated clip duration: ${seconds}s`,
+    chatDurationAria: "Chat generated duration (seconds)",
+    chatDurationHint:
+      "Long clips may take several minutes and can fail on weaker devices.",
+    targetBpm: "Target BPM (optional, 60-200)",
+    chatOptions: "Chat generation options",
+    instrumentalOnly: "Instrumental only",
+    includeDrums: "Include drums groove",
+    generateFromChat: "Generate from chat",
+    generatingResponse: "Generating response...",
+    chatProgressAria: "Chat generation progress",
+    generationStatus: "Generation status",
+    status: "Status",
+    error: "Error",
+    generatedTimeline: "Generated timeline",
+    generatedResults: "Generated Results",
+    noGenerationsYet: "No generations yet.",
+    browserNoAudio: "Your browser does not support audio playback.",
+    pausePreview: "Pause preview",
+    playPreview: "Play preview",
+    invalidPrompt: "Invalid prompt",
+    emptyPrompt: "Prompt cannot be empty.",
+    providerTemporaryFailure: "Provider temporary failure",
+  },
+  pl: {
+    appTitle: "Studio Muzyki AI",
+    localPlayground: "Lokalne Studio Muzyczne AI",
+    appSubtitle: "Tworz muzyke w trybie live jam albo z promptow czatu.",
+    installApp: "Zainstaluj aplikacje",
+    installUnavailable:
+      "Automatyczna instalacja nie jest jeszcze dostepna. Uzyj menu przegladarki, aby zainstalowac te aplikacje.",
+    switchToLight: "Przelacz na jasny motyw",
+    switchToDark: "Przelacz na ciemny motyw",
+    lightMode: "Jasny motyw",
+    darkMode: "Ciemny motyw",
+    languageButton: "EN / PL",
+    downloadingTokenizer: "Pobieranie tokenizera",
+    downloadingModel: "Pobieranie modelu MusicGen",
+    modelReady: "MusicGen gotowy",
+    modelLoadFailed: "Nie udalo sie zaladowac modelu MusicGen.",
+    fallbackActive:
+      "Tryby generowania AI sa obecnie wylaczone. Aktywny jest tryb awaryjny.",
+    reEnableAiModes: "Wlacz ponownie tryby AI",
+    generationMode: "Tryb generowania",
+    liveJam: "Live Jam",
+    chatGenerate: "Generowanie z czatu",
+    speedQualityPreset: "Preset szybkosci / jakosci",
+    presetSelectedInfo: (label, tokens, guidance) =>
+      `Wybrano ${label}. Szacowany koszt dla klipu 6s: ~${tokens} tokenow przy guidance ${guidance}.`,
+    liveAccompaniment: "Akompaniament na zywo",
+    notesProgression: "Nuty / progresja",
+    previewDuration: (seconds) => `Dlugosc podgladu: ${seconds}s`,
+    previewDurationAria: "Dlugosc podgladu (sekundy)",
+    simulateProviderFailure: "Symuluj blad providera",
+    enable: "Wlacz",
+    mute: "Wycisz",
+    unmute: "Odlacz wyciszenie",
+    chatPromptGeneration: "Generowanie z promptu czatu",
+    prompt: "Prompt",
+    generatedClipDuration: (seconds) =>
+      `Dlugosc generowanego klipu: ${seconds}s`,
+    chatDurationAria: "Dlugosc utworu z czatu (sekundy)",
+    chatDurationHint:
+      "Dluzsze klipy moga generowac sie kilka minut i moga nie dzialac stabilnie na slabszych urzadzeniach.",
+    targetBpm: "Docelowe BPM (opcjonalnie, 60-200)",
+    chatOptions: "Opcje generowania czatu",
+    instrumentalOnly: "Tylko instrumental",
+    includeDrums: "Dodaj groove perkusyjny",
+    generateFromChat: "Generuj z czatu",
+    generatingResponse: "Generowanie odpowiedzi...",
+    chatProgressAria: "Postep generowania z czatu",
+    generationStatus: "Status generowania",
+    status: "Status",
+    error: "Blad",
+    generatedTimeline: "Osi czasu generacji",
+    generatedResults: "Wygenerowane wyniki",
+    noGenerationsYet: "Brak wygenerowanych wynikow.",
+    browserNoAudio: "Twoja przegladarka nie obsluguje odtwarzania audio.",
+    pausePreview: "Wstrzymaj podglad",
+    playPreview: "Odtworz podglad",
+    invalidPrompt: "Nieprawidlowy prompt",
+    emptyPrompt: "Prompt nie moze byc pusty.",
+    providerTemporaryFailure: "Tymczasowa awaria providera",
+  },
+};
 
 const MUSICGEN_QUALITY_PRESET_INFO: Record<
-  MusicGenQualityPreset,
-  { label: string; tokensPerSecond: number; guidanceScale: number }
+  UiLanguage,
+  Record<
+    MusicGenQualityPreset,
+    { label: string; tokensPerSecond: number; guidanceScale: number }
+  >
 > = {
-  fast: { label: "Fast draft", tokensPerSecond: 4, guidanceScale: 2.5 },
-  balanced: { label: "Balanced", tokensPerSecond: 6, guidanceScale: 3 },
-  quality: { label: "Better quality", tokensPerSecond: 8, guidanceScale: 4 },
+  en: {
+    fast: { label: "Fast draft", tokensPerSecond: 4, guidanceScale: 2.5 },
+    balanced: { label: "Balanced", tokensPerSecond: 6, guidanceScale: 3 },
+    quality: { label: "Better quality", tokensPerSecond: 8, guidanceScale: 4 },
+  },
+  pl: {
+    fast: { label: "Szybki szkic", tokensPerSecond: 4, guidanceScale: 2.5 },
+    balanced: { label: "Balans", tokensPerSecond: 6, guidanceScale: 3 },
+    quality: { label: "Lepsza jakosc", tokensPerSecond: 8, guidanceScale: 4 },
+  },
 };
 
 function readStoredMusicGenQualityPreset(): MusicGenQualityPreset {
@@ -59,6 +253,38 @@ function readStoredTheme(): ThemeMode {
   return window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "dark"
     : "light";
+}
+
+function readStoredLanguage(): UiLanguage {
+  if (typeof window === "undefined") {
+    return "en";
+  }
+
+  const storedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  if (storedLanguage === "pl" || storedLanguage === "en") {
+    return storedLanguage;
+  }
+
+  const browserLanguage = window.navigator.language.toLowerCase();
+  return browserLanguage.startsWith("pl") ? "pl" : "en";
+}
+
+function localizeErrorMessage(message: string, language: UiLanguage): string {
+  const ui = UI_TEXT[language];
+
+  if (message === "Prompt cannot be empty.") {
+    return ui.emptyPrompt;
+  }
+
+  if (message === "Provider temporary failure") {
+    return ui.providerTemporaryFailure;
+  }
+
+  if (message === "Invalid prompt") {
+    return ui.invalidPrompt;
+  }
+
+  return message;
 }
 
 interface BeforeInstallPromptEvent extends Event {
@@ -109,6 +335,11 @@ function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>(() =>
     import.meta.env.MODE === "test" ? "light" : readStoredTheme(),
   );
+  const [language, setLanguage] = useState<UiLanguage>(() =>
+    import.meta.env.MODE === "test" ? "en" : readStoredLanguage(),
+  );
+
+  const ui = UI_TEXT[language];
 
   const isLiveEnabled = isFeatureEnabled("ai-jam-accompaniment");
   const isChatEnabled = isFeatureEnabled("chat-prompt-music-generation");
@@ -151,9 +382,7 @@ function App() {
         if (!cancelled) {
           setModelLoadStatus("failed");
           setModelLoadError(
-            error instanceof Error
-              ? error.message
-              : "Failed to load MusicGen model.",
+            error instanceof Error ? error.message : ui.modelLoadFailed,
           );
         }
       });
@@ -163,7 +392,7 @@ function App() {
       setMusicGenProgressReporter(null);
       unsubscribe();
     };
-  }, [orchestrator]);
+  }, [orchestrator, ui.modelLoadFailed]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -185,6 +414,15 @@ function App() {
   }, [themeMode]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    document.documentElement.lang = language;
+  }, [language]);
+
+  useEffect(() => {
     function handleBeforeInstallPrompt(event: Event): void {
       event.preventDefault();
       setInstallPrompt(event as BeforeInstallPromptEvent);
@@ -201,9 +439,7 @@ function App() {
 
   async function handleInstallApp() {
     if (!installPrompt) {
-      setInstallHint(
-        "Automatic install is not available yet. Use the browser menu to install this app.",
-      );
+      setInstallHint(ui.installUnavailable);
       return;
     }
 
@@ -219,102 +455,9 @@ function App() {
     );
   }
 
-  if (modelLoadStatus === "loading") {
-    const progressLabel =
-      modelLoadStage === "tokenizer"
-        ? "Downloading tokenizer"
-        : modelLoadStage === "model"
-          ? "Downloading MusicGen model"
-          : "MusicGen ready";
-
-    return (
-      <main className="mx-auto w-full max-w-3xl px-4 pb-12 pt-6 text-slate-900 sm:px-6 dark:text-slate-100">
-        <div className="space-y-4 rounded-2xl border border-slate-200/70 bg-white/85 p-5 shadow-lg backdrop-blur sm:p-6 dark:border-slate-700/70 dark:bg-slate-900/85">
-          <div className="flex items-start justify-between gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight">
-              AI Music Studio
-            </h1>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={handleToggleTheme}
-                aria-pressed={themeMode === "dark"}
-                aria-label={`Switch to ${themeMode === "dark" ? "light" : "dark"} mode`}
-              >
-                {themeMode === "dark" ? "Light mode" : "Dark mode"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleInstallApp}
-                tabIndex={installPrompt ? 0 : -1}
-              >
-                Install app
-              </Button>
-            </div>
-          </div>
-          {installHint && (
-            <p className="rounded-xl border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
-              {installHint}
-            </p>
-          )}
-          <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-            {progressLabel}... {modelLoadProgress}%
-          </p>
-          <div
-            className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
-            aria-label="MusicGen model loading progress"
-            aria-valuenow={modelLoadProgress}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            role="progressbar"
-          >
-            <div
-              className="h-full rounded-full bg-slate-900 transition-[width] dark:bg-slate-100"
-              style={{ width: `${modelLoadProgress}%` }}
-            />
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  if (modelLoadStatus === "failed") {
-    return (
-      <main className="mx-auto w-full max-w-3xl px-4 pb-12 pt-6 text-slate-900 sm:px-6 dark:text-slate-100">
-        <div className="space-y-4 rounded-2xl border border-red-200 bg-white/90 p-5 shadow-lg sm:p-6 dark:border-red-400/70 dark:bg-slate-900/85">
-          <div className="flex items-start justify-between gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight">
-              AI Music Studio
-            </h1>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={handleToggleTheme}
-                aria-pressed={themeMode === "dark"}
-                aria-label={`Switch to ${themeMode === "dark" ? "light" : "dark"} mode`}
-              >
-                {themeMode === "dark" ? "Light mode" : "Dark mode"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleInstallApp}
-                tabIndex={installPrompt ? 0 : -1}
-              >
-                Install app
-              </Button>
-            </div>
-          </div>
-          {installHint && (
-            <p className="rounded-xl border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
-              {installHint}
-            </p>
-          )}
-          <p className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-900">
-            {modelLoadError ?? "Failed to load MusicGen model."}
-          </p>
-        </div>
-      </main>
-    );
+  function handleToggleLanguage() {
+    setLanguage((currentLanguage) => (currentLanguage === "en" ? "pl" : "en"));
+    setInstallHint(null);
   }
 
   const effectiveMode =
@@ -324,9 +467,9 @@ function App() {
         ? "live-jam"
         : mode;
 
-  const statusLabel = statusToText(state.status);
+  const statusLabel = statusToText(state.status, language);
   const selectedPresetInfo =
-    MUSICGEN_QUALITY_PRESET_INFO[musicGenQualityPreset];
+    MUSICGEN_QUALITY_PRESET_INFO[language][musicGenQualityPreset];
   const defaultClipSeconds = 6;
   const selectedPresetTokens =
     selectedPresetInfo.tokensPerSecond * defaultClipSeconds;
@@ -366,9 +509,127 @@ function App() {
       await orchestrator.generate(request);
     } catch (error) {
       setValidationError(
-        error instanceof Error ? error.message : "Invalid prompt",
+        error instanceof Error
+          ? localizeErrorMessage(error.message, language)
+          : ui.invalidPrompt,
       );
     }
+  }
+
+  if (modelLoadStatus === "loading") {
+    const progressLabel =
+      modelLoadStage === "tokenizer"
+        ? ui.downloadingTokenizer
+        : modelLoadStage === "model"
+          ? ui.downloadingModel
+          : ui.modelReady;
+
+    return (
+      <main className="mx-auto w-full max-w-3xl px-4 pb-12 pt-6 text-slate-900 sm:px-6 dark:text-slate-100">
+        <div className="space-y-4 rounded-2xl border border-slate-200/70 bg-white/85 p-5 shadow-lg backdrop-blur sm:p-6 dark:border-slate-700/70 dark:bg-slate-900/85">
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight">
+              {ui.appTitle}
+            </h1>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={handleToggleTheme}
+                aria-pressed={themeMode === "dark"}
+                aria-label={
+                  themeMode === "dark" ? ui.switchToLight : ui.switchToDark
+                }
+              >
+                {themeMode === "dark" ? ui.lightMode : ui.darkMode}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleInstallApp}
+                tabIndex={installPrompt ? 0 : -1}
+              >
+                {ui.installApp}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleToggleLanguage}
+                aria-label="Switch language"
+              >
+                {ui.languageButton}
+              </Button>
+            </div>
+          </div>
+          {installHint && (
+            <p className="rounded-xl border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+              {installHint}
+            </p>
+          )}
+          <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+            {progressLabel}... {modelLoadProgress}%
+          </p>
+          <div
+            className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
+            aria-label="MusicGen model loading progress"
+            aria-valuenow={modelLoadProgress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            role="progressbar"
+          >
+            <div
+              className="h-full rounded-full bg-slate-900 transition-[width] dark:bg-slate-100"
+              style={{ width: `${modelLoadProgress}%` }}
+            />
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (modelLoadStatus === "failed") {
+    return (
+      <main className="mx-auto w-full max-w-3xl px-4 pb-12 pt-6 text-slate-900 sm:px-6 dark:text-slate-100">
+        <div className="space-y-4 rounded-2xl border border-red-200 bg-white/90 p-5 shadow-lg sm:p-6 dark:border-red-400/70 dark:bg-slate-900/85">
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight">
+              {ui.appTitle}
+            </h1>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={handleToggleTheme}
+                aria-pressed={themeMode === "dark"}
+                aria-label={
+                  themeMode === "dark" ? ui.switchToLight : ui.switchToDark
+                }
+              >
+                {themeMode === "dark" ? ui.lightMode : ui.darkMode}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleInstallApp}
+                tabIndex={installPrompt ? 0 : -1}
+              >
+                {ui.installApp}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleToggleLanguage}
+                aria-label="Switch language"
+              >
+                {ui.languageButton}
+              </Button>
+            </div>
+          </div>
+          {installHint && (
+            <p className="rounded-xl border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+              {installHint}
+            </p>
+          )}
+          <p className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-900">
+            {modelLoadError ?? ui.modelLoadFailed}
+          </p>
+        </div>
+      </main>
+    );
   }
 
   if (!isLiveEnabled && !isChatEnabled) {
@@ -376,10 +637,10 @@ function App() {
       <main className="mx-auto w-full max-w-3xl px-4 pb-12 pt-6 text-slate-900 sm:px-6 dark:text-slate-100">
         <section className="space-y-4 rounded-2xl border border-amber-200 bg-white/90 p-5 shadow-lg sm:p-6 dark:border-amber-400/70 dark:bg-slate-900/85">
           <h1 className="text-3xl font-semibold tracking-tight">
-            AI Music Studio
+            {ui.appTitle}
           </h1>
           <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-            AI generation modes are currently disabled. Fallback mode is active.
+            {ui.fallbackActive}
           </p>
           <Button
             variant="outline"
@@ -389,7 +650,7 @@ function App() {
               window.location.reload();
             }}
           >
-            Re-enable AI modes
+            {ui.reEnableAiModes}
           </Button>
         </section>
       </main>
@@ -402,13 +663,13 @@ function App() {
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 dark:text-slate-300">
-              Local AI Music Playground
+              {ui.localPlayground}
             </p>
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              AI Music Studio
+              {ui.appTitle}
             </h1>
             <p className="text-sm text-slate-700 dark:text-slate-200">
-              Create music in live jam mode or from chat prompts.
+              {ui.appSubtitle}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -416,16 +677,25 @@ function App() {
               variant="outline"
               onClick={handleToggleTheme}
               aria-pressed={themeMode === "dark"}
-              aria-label={`Switch to ${themeMode === "dark" ? "light" : "dark"} mode`}
+              aria-label={
+                themeMode === "dark" ? ui.switchToLight : ui.switchToDark
+              }
             >
-              {themeMode === "dark" ? "Light mode" : "Dark mode"}
+              {themeMode === "dark" ? ui.lightMode : ui.darkMode}
             </Button>
             <Button
               variant="outline"
               onClick={handleInstallApp}
               tabIndex={installPrompt ? 0 : -1}
             >
-              Install app
+              {ui.installApp}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleToggleLanguage}
+              aria-label="Switch language"
+            >
+              {ui.languageButton}
             </Button>
           </div>
         </div>
@@ -438,7 +708,7 @@ function App() {
 
       <section
         className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200/70 bg-white/80 p-2 shadow-sm backdrop-blur dark:border-slate-700/70 dark:bg-slate-900/80"
-        aria-label="Generation mode"
+        aria-label={ui.generationMode}
       >
         {isLiveEnabled && (
           <Button
@@ -446,7 +716,7 @@ function App() {
             className="w-full"
             onClick={() => setMode("live-jam")}
           >
-            Live Jam
+            {ui.liveJam}
           </Button>
         )}
         {isChatEnabled && (
@@ -455,14 +725,14 @@ function App() {
             className="w-full"
             onClick={() => setMode("chat-generate")}
           >
-            Chat Generate
+            {ui.chatGenerate}
           </Button>
         )}
       </section>
 
       <section className="space-y-2 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm backdrop-blur sm:p-5 dark:border-slate-700/70 dark:bg-slate-900/80">
         <label htmlFor="musicgen-quality" className="text-sm font-medium">
-          Speed / quality preset
+          {ui.speedQualityPreset}
         </label>
         <select
           id="musicgen-quality"
@@ -475,37 +745,39 @@ function App() {
           className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
         >
           <option value="fast">
-            Fast draft - ~
-            {MUSICGEN_QUALITY_PRESET_INFO.fast.tokensPerSecond *
+            {MUSICGEN_QUALITY_PRESET_INFO[language].fast.label} - ~
+            {MUSICGEN_QUALITY_PRESET_INFO[language].fast.tokensPerSecond *
               defaultClipSeconds}{" "}
             tokens / 6s
           </option>
           <option value="balanced">
-            Balanced - ~
-            {MUSICGEN_QUALITY_PRESET_INFO.balanced.tokensPerSecond *
+            {MUSICGEN_QUALITY_PRESET_INFO[language].balanced.label} - ~
+            {MUSICGEN_QUALITY_PRESET_INFO[language].balanced.tokensPerSecond *
               defaultClipSeconds}{" "}
             tokens / 6s
           </option>
           <option value="quality">
-            Better quality - ~
-            {MUSICGEN_QUALITY_PRESET_INFO.quality.tokensPerSecond *
+            {MUSICGEN_QUALITY_PRESET_INFO[language].quality.label} - ~
+            {MUSICGEN_QUALITY_PRESET_INFO[language].quality.tokensPerSecond *
               defaultClipSeconds}{" "}
             tokens / 6s
           </option>
         </select>
         <p className="text-sm text-slate-700 dark:text-slate-200">
-          {selectedPresetInfo.label} is selected. Estimated cost for a 6s clip:
-          ~{selectedPresetTokens} tokens at guidance{" "}
-          {selectedPresetInfo.guidanceScale}.
+          {ui.presetSelectedInfo(
+            selectedPresetInfo.label,
+            selectedPresetTokens,
+            selectedPresetInfo.guidanceScale,
+          )}
         </p>
       </section>
 
       <section className="space-y-4 rounded-2xl border border-slate-200/70 bg-white/90 p-4 shadow-md sm:p-5 dark:border-slate-700/70 dark:bg-slate-900/85">
         {effectiveMode === "live-jam" && isLiveEnabled && (
           <>
-            <h2 className="text-lg font-medium">Live Accompaniment</h2>
+            <h2 className="text-lg font-medium">{ui.liveAccompaniment}</h2>
             <label htmlFor="live-notes" className="text-sm font-medium">
-              Notes / progression
+              {ui.notesProgression}
             </label>
             <input
               id="live-notes"
@@ -514,7 +786,7 @@ function App() {
               className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
             />
             <label htmlFor="live-duration" className="text-sm font-medium">
-              Preview duration: {liveDurationSeconds}s
+              {ui.previewDuration(liveDurationSeconds)}
             </label>
             <input
               id="live-duration"
@@ -526,7 +798,7 @@ function App() {
               onChange={(event) =>
                 setLiveDurationSeconds(Number(event.target.value))
               }
-              aria-label="Preview duration (seconds)"
+              aria-label={ui.previewDurationAria}
             />
             <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
               <input
@@ -534,7 +806,7 @@ function App() {
                 checked={liveFailure}
                 onChange={(event) => setLiveFailure(event.target.checked)}
               />
-              Simulate provider failure
+              {ui.simulateProviderFailure}
             </label>
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <Button
@@ -542,7 +814,7 @@ function App() {
                 onClick={handleLiveEnable}
                 aria-label="Enable accompaniment"
               >
-                Enable
+                {ui.enable}
               </Button>
               <Button
                 className="w-full sm:w-auto"
@@ -550,7 +822,7 @@ function App() {
                 onClick={() => setMuted((current) => !current)}
                 aria-label="Mute accompaniment"
               >
-                {muted ? "Unmute" : "Mute"}
+                {muted ? ui.unmute : ui.mute}
               </Button>
               <Button
                 className="w-full sm:w-auto"
@@ -566,10 +838,10 @@ function App() {
 
         {effectiveMode === "chat-generate" && isChatEnabled && (
           <>
-            <h2 className="text-lg font-medium">Chat Prompt Generation</h2>
+            <h2 className="text-lg font-medium">{ui.chatPromptGeneration}</h2>
             <form onSubmit={handleChatSubmit} className="space-y-3">
               <label htmlFor="chat-prompt" className="text-sm font-medium">
-                Prompt
+                {ui.prompt}
               </label>
               <textarea
                 id="chat-prompt"
@@ -579,22 +851,25 @@ function App() {
                 className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               />
               <label htmlFor="chat-duration" className="text-sm font-medium">
-                Generated clip duration: {chatDurationSeconds}s
+                {ui.generatedClipDuration(chatDurationSeconds)}
               </label>
               <input
                 id="chat-duration"
                 type="range"
                 min={2}
-                max={12}
+                max={120}
                 step={1}
                 value={chatDurationSeconds}
                 onChange={(event) =>
                   setChatDurationSeconds(Number(event.target.value))
                 }
-                aria-label="Chat generated duration (seconds)"
+                aria-label={ui.chatDurationAria}
               />
+              <p className="text-xs text-slate-600 dark:text-slate-300">
+                {ui.chatDurationHint}
+              </p>
               <label htmlFor="chat-bpm" className="text-sm font-medium">
-                Target BPM (optional, 60-200)
+                {ui.targetBpm}
               </label>
               <input
                 id="chat-bpm"
@@ -608,7 +883,7 @@ function App() {
                 className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               />
               <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
-                <p className="text-sm font-medium">Chat generation options</p>
+                <p className="text-sm font-medium">{ui.chatOptions}</p>
                 <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
                   <input
                     type="checkbox"
@@ -617,7 +892,7 @@ function App() {
                       setChatInstrumentalOnly(event.target.checked)
                     }
                   />
-                  Instrumental only
+                  {ui.instrumentalOnly}
                 </label>
                 <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
                   <input
@@ -627,7 +902,7 @@ function App() {
                       setChatIncludeDrums(event.target.checked)
                     }
                   />
-                  Include drums groove
+                  {ui.includeDrums}
                 </label>
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
@@ -636,18 +911,18 @@ function App() {
                   checked={chatFailure}
                   onChange={(event) => setChatFailure(event.target.checked)}
                 />
-                Simulate provider failure
+                {ui.simulateProviderFailure}
               </label>
-              <Button type="submit">Generate from chat</Button>
+              <Button type="submit">{ui.generateFromChat}</Button>
             </form>
             {state.status === "processing" && (
               <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
                 <p className="text-sm text-slate-700 dark:text-slate-100">
-                  Generating response...
+                  {ui.generatingResponse}
                 </p>
                 <div
                   className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
-                  aria-label="Chat generation progress"
+                  aria-label={ui.chatProgressAria}
                   aria-valuenow={undefined}
                   aria-valuemin={0}
                   aria-valuemax={100}
@@ -670,9 +945,9 @@ function App() {
         className="rounded-2xl border border-slate-200/70 bg-white/90 p-4 shadow-sm dark:border-slate-700/70 dark:bg-slate-900/85"
         role="status"
         aria-live="polite"
-        aria-label="Generation status"
+        aria-label={ui.generationStatus}
       >
-        <strong>Status:</strong> {statusLabel}
+        <strong>{ui.status}:</strong> {statusLabel}
       </section>
 
       {state.error && (
@@ -680,16 +955,17 @@ function App() {
           className="rounded-2xl border border-red-300 bg-red-50 p-3 text-red-800 shadow-sm"
           role="alert"
         >
-          <strong>Error:</strong> {state.error.message}
+          <strong>{ui.error}:</strong>{" "}
+          {localizeErrorMessage(state.error.message, language)}
         </section>
       )}
 
       <section
         className="rounded-2xl border border-slate-200/70 bg-white/90 p-4 shadow-md dark:border-slate-700/70 dark:bg-slate-900/85"
-        aria-label="Generated timeline"
+        aria-label={ui.generatedTimeline}
       >
-        <h2 className="text-lg font-medium">Generated Results</h2>
-        {timeline.length === 0 && <p>No generations yet.</p>}
+        <h2 className="text-lg font-medium">{ui.generatedResults}</h2>
+        {timeline.length === 0 && <p>{ui.noGenerationsYet}</p>}
         <ul className="mt-2 space-y-2">
           {timeline.map((entry) => (
             <li
@@ -699,7 +975,7 @@ function App() {
               <p className="text-sm">{entry.content}</p>
               {entry.audio ? (
                 <audio controls className="mt-2 w-full" src={entry.audio.url}>
-                  Your browser does not support audio playback.
+                  {ui.browserNoAudio}
                 </audio>
               ) : (
                 <Button
@@ -712,7 +988,7 @@ function App() {
                     )
                   }
                 >
-                  {playingId === entry.id ? "Pause preview" : "Play preview"}
+                  {playingId === entry.id ? ui.pausePreview : ui.playPreview}
                 </Button>
               )}
             </li>
@@ -723,21 +999,25 @@ function App() {
   );
 }
 
-function statusToText(status: GenerationStatus): string {
-  switch (status) {
-    case "idle":
-      return "Idle";
-    case "processing":
-      return "Processing";
-    case "ready":
-      return "Ready";
-    case "degraded":
-      return "Degraded - high latency";
-    case "failed":
-      return "Failed";
-    default:
-      return "Unknown";
-  }
+function statusToText(status: GenerationStatus, language: UiLanguage): string {
+  const statusMap: Record<UiLanguage, Record<GenerationStatus, string>> = {
+    en: {
+      idle: "Idle",
+      processing: "Processing",
+      ready: "Ready",
+      degraded: "Degraded - high latency",
+      failed: "Failed",
+    },
+    pl: {
+      idle: "Bezczynny",
+      processing: "Przetwarzanie",
+      ready: "Gotowe",
+      degraded: "Ograniczony - duza latencja",
+      failed: "Niepowodzenie",
+    },
+  };
+
+  return statusMap[language][status];
 }
 
 export default App;

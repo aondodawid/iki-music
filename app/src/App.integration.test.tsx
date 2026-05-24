@@ -111,6 +111,11 @@ describe("AI music modes integration", () => {
     ).toHaveFocus();
 
     await user.tab();
+    expect(
+      screen.getByRole("button", { name: "Switch language" }),
+    ).toHaveFocus();
+
+    await user.tab();
     expect(screen.getByRole("button", { name: "Live Jam" })).toHaveFocus();
 
     const status = screen.getByRole("status", { name: "Generation status" });

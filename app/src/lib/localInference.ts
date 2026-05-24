@@ -44,7 +44,7 @@ const ESTIMATED_MUSICGEN_MODEL_MIB = (
 
 const WAV_MIME_TYPE = "audio/wav";
 const MIN_DURATION_SECONDS = 2;
-const MAX_DURATION_SECONDS = 12;
+const MAX_DURATION_SECONDS = 120;
 const DEFAULT_DURATION_SECONDS = 6;
 const MUSICGEN_TOKENS_PER_SECOND: Record<MusicGenQualityPreset, number> = {
   fast: 4,
