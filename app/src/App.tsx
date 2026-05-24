@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { buildChatPromptRequest, buildLiveJamRequest } from "./lib/adapters";
 import { Button } from "@/components/ui/button";
 import { isFeatureEnabled, setFeatureFlag } from "./lib/featureFlags";
@@ -84,6 +84,10 @@ interface UiText {
   noGenerationsYet: string;
   deleteTrack: string;
   deleteAllTracks: string;
+  exportLibrary: string;
+  importLibrary: string;
+  importInvalid: string;
+  importCompleted: (count: number) => string;
   browserNoAudio: string;
   pausePreview: string;
   playPreview: string;
@@ -151,6 +155,10 @@ const UI_TEXT: Record<UiLanguage, UiText> = {
     noGenerationsYet: "No generations yet.",
     deleteTrack: "Delete",
     deleteAllTracks: "Delete all",
+    exportLibrary: "Export library",
+    importLibrary: "Import library",
+    importInvalid: "Invalid library file format.",
+    importCompleted: (count) => `Imported tracks: ${count}.`,
     browserNoAudio: "Your browser does not support audio playback.",
     pausePreview: "Pause preview",
     playPreview: "Play preview",
@@ -217,6 +225,10 @@ const UI_TEXT: Record<UiLanguage, UiText> = {
     noGenerationsYet: "Brak wygenerowanych wynikow.",
     deleteTrack: "Usun",
     deleteAllTracks: "Usun wszystko",
+    exportLibrary: "Eksportuj biblioteke",
+    importLibrary: "Importuj biblioteke",
+    importInvalid: "Nieprawidlowy format pliku biblioteki.",
+    importCompleted: (count) => `Zaimportowane utwory: ${count}.`,
     browserNoAudio: "Twoja przegladarka nie obsluguje odtwarzania audio.",
     pausePreview: "Wstrzymaj podglad",
     playPreview: "Odtworz podglad",
@@ -356,6 +368,130 @@ interface BeforeInstallPromptEvent extends Event {
   }>;
 }
 
+interface ExportedTimelineEntry {
+  id: string;
+  sessionId: string;
+  mode: GenerationResult["mode"];
+  content: string;
+  createdAt: number;
+  audioMimeType?: string;
+  audioSampleRate?: number;
+  audioDataUrl?: string;
+}
+
+interface ExportedTimelinePayload {
+  version: 1;
+  exportedAt: number;
+  entries: ExportedTimelineEntry[];
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onerror = () => {
+      reject(reader.error ?? new Error("Failed to read audio blob."));
+    };
+
+    reader.onload = () => {
+      const value = reader.result;
+      if (typeof value === "string") {
+        resolve(value);
+        return;
+      }
+
+      reject(new Error("Failed to encode audio blob."));
+    };
+
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function generationResultToExportEntry(
+  entry: GenerationResult,
+): Promise<ExportedTimelineEntry> {
+  let audioDataUrl: string | undefined;
+
+  if (entry.audio?.url) {
+    try {
+      const response = await fetch(entry.audio.url);
+      if (response.ok) {
+        const blob = await response.blob();
+        audioDataUrl = await blobToDataUrl(blob);
+      }
+    } catch {
+      audioDataUrl = undefined;
+    }
+  }
+
+  return {
+    id: entry.id,
+    sessionId: entry.sessionId,
+    mode: entry.mode,
+    content: entry.content,
+    createdAt: entry.createdAt,
+    audioMimeType: entry.audio?.mimeType,
+    audioSampleRate: entry.audio?.sampleRate,
+    audioDataUrl,
+  };
+}
+
+function isValidExportedTimelineEntry(
+  value: unknown,
+): value is ExportedTimelineEntry {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<ExportedTimelineEntry>;
+
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.sessionId === "string" &&
+    (candidate.mode === "live-jam" || candidate.mode === "chat-generate") &&
+    typeof candidate.content === "string" &&
+    typeof candidate.createdAt === "number" &&
+    (candidate.audioMimeType === undefined ||
+      typeof candidate.audioMimeType === "string") &&
+    (candidate.audioSampleRate === undefined ||
+      typeof candidate.audioSampleRate === "number") &&
+    (candidate.audioDataUrl === undefined ||
+      typeof candidate.audioDataUrl === "string")
+  );
+}
+
+async function exportEntryToGenerationResult(
+  entry: ExportedTimelineEntry,
+): Promise<GenerationResult> {
+  let audio:
+    | {
+        url: string;
+        mimeType: string;
+        sampleRate: number;
+      }
+    | undefined;
+
+  if (entry.audioDataUrl && entry.audioMimeType && entry.audioSampleRate) {
+    const response = await fetch(entry.audioDataUrl);
+    const blob = await response.blob();
+
+    audio = {
+      url: URL.createObjectURL(blob),
+      mimeType: entry.audioMimeType,
+      sampleRate: entry.audioSampleRate,
+    };
+  }
+
+  return {
+    id: entry.id,
+    sessionId: entry.sessionId,
+    mode: entry.mode,
+    content: entry.content,
+    createdAt: entry.createdAt,
+    audio,
+  };
+}
+
 function App() {
   const orchestrator = useMemo(() => new GenerationOrchestrator(), []);
   const [state, setState] = useState(orchestrator.getState());
@@ -406,7 +542,9 @@ function App() {
   const [language, setLanguage] = useState<UiLanguage>(() =>
     import.meta.env.MODE === "test" ? "en" : readStoredLanguage(),
   );
+  const [timelineNotice, setTimelineNotice] = useState<string | null>(null);
   const timelineRef = useRef<GenerationResult[]>([]);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const ui = UI_TEXT[language];
 
@@ -567,6 +705,7 @@ function App() {
   function handleToggleLanguage() {
     setLanguage((currentLanguage) => (currentLanguage === "en" ? "pl" : "en"));
     setInstallHint(null);
+    setTimelineNotice(null);
   }
 
   const effectiveMode =
@@ -652,6 +791,7 @@ function App() {
 
     setPlayingId((current) => (current === entry.id ? null : current));
     setTimeline((previous) => previous.filter((item) => item.id !== entry.id));
+    setTimelineNotice(null);
 
     if (import.meta.env.MODE !== "test") {
       await deletePersistedTimelineEntry(entry.id).catch(() => {
@@ -669,11 +809,95 @@ function App() {
 
     setPlayingId(null);
     setTimeline([]);
+    setTimelineNotice(null);
 
     if (import.meta.env.MODE !== "test") {
       await clearPersistedTimeline().catch(() => {
         // Keep UI consistent even when persistence clear fails.
       });
+    }
+  }
+
+  async function handleExportLibrary() {
+    setTimelineNotice(null);
+
+    const payload: ExportedTimelinePayload = {
+      version: 1,
+      exportedAt: Date.now(),
+      entries: await Promise.all(
+        timelineRef.current.map((entry) =>
+          generationResultToExportEntry(entry),
+        ),
+      ),
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+
+    const fileDate = new Date(payload.exportedAt)
+      .toISOString()
+      .replace(/[:.]/g, "-");
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `iki-music-library-${fileDate}.json`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleImportLibraryClick() {
+    setTimelineNotice(null);
+    importInputRef.current?.click();
+  }
+
+  async function handleImportLibrary(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as Partial<ExportedTimelinePayload>;
+
+      if (parsed.version !== 1 || !Array.isArray(parsed.entries)) {
+        throw new Error("Invalid import payload version.");
+      }
+
+      const validEntries = parsed.entries.filter(isValidExportedTimelineEntry);
+      if (validEntries.length !== parsed.entries.length) {
+        throw new Error("Import payload contains invalid timeline entries.");
+      }
+
+      const restoredTimeline = await Promise.all(
+        validEntries.map((entry) => exportEntryToGenerationResult(entry)),
+      );
+      restoredTimeline.sort((a, b) => b.createdAt - a.createdAt);
+
+      timelineRef.current.forEach((entry) => {
+        if (entry.audio?.url?.startsWith("blob:")) {
+          URL.revokeObjectURL(entry.audio.url);
+        }
+      });
+
+      setPlayingId(null);
+      setTimeline(restoredTimeline);
+
+      if (import.meta.env.MODE !== "test") {
+        await clearPersistedTimeline();
+        await Promise.all(
+          restoredTimeline.map((entry) => persistTimelineEntry(entry)),
+        );
+      }
+
+      setTimelineNotice(ui.importCompleted(restoredTimeline.length));
+    } catch {
+      setTimelineNotice(ui.importInvalid);
     }
   }
 
@@ -1147,17 +1371,51 @@ function App() {
       >
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-medium">{ui.generatedResults}</h2>
-          {timeline.length > 0 && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Button
               variant="outline"
               size="sm"
-              onClick={handleDeleteAllEntries}
-              aria-label={ui.deleteAllTracks}
+              onClick={handleImportLibraryClick}
+              aria-label={ui.importLibrary}
             >
-              {ui.deleteAllTracks}
+              {ui.importLibrary}
             </Button>
-          )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void handleExportLibrary();
+              }}
+              aria-label={ui.exportLibrary}
+            >
+              {ui.exportLibrary}
+            </Button>
+            {timeline.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDeleteAllEntries}
+                aria-label={ui.deleteAllTracks}
+              >
+                {ui.deleteAllTracks}
+              </Button>
+            )}
+          </div>
         </div>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept="application/json"
+          className="hidden"
+          onChange={(event) => {
+            void handleImportLibrary(event);
+          }}
+        />
+        {timelineNotice && (
+          <p className="mt-2 rounded-md border border-slate-300 bg-slate-50 p-2 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
+            {timelineNotice}
+          </p>
+        )}
         {timeline.length === 0 && <p>{ui.noGenerationsYet}</p>}
         <ul className="mt-2 space-y-2">
           {timeline.map((entry) => (
