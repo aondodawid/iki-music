@@ -10,6 +10,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      filename: "assets/sw.js",
+      manifestFilename: "assets/manifest.webmanifest",
       registerType: "autoUpdate",
       devOptions: {
         enabled: true,
@@ -46,7 +48,7 @@ export default defineConfig({
             url: "/?mode=live-jam",
             icons: [
               {
-                src: "/pwa-192x192.png",
+                src: "/assets/pwa-192x192.png",
                 sizes: "192x192",
                 type: "image/png",
               },
@@ -59,7 +61,7 @@ export default defineConfig({
             url: "/?mode=chat-generate",
             icons: [
               {
-                src: "/pwa-192x192.png",
+                src: "/assets/pwa-192x192.png",
                 sizes: "192x192",
                 type: "image/png",
               },
@@ -68,14 +70,14 @@ export default defineConfig({
         ],
         screenshots: [
           {
-            src: "/screenshot-wide.png",
+            src: "/assets/screenshot-wide.png",
             sizes: "1280x720",
             type: "image/png",
             label: "IKI Music Studio dashboard",
             form_factor: "wide",
           },
           {
-            src: "/screenshot-mobile.png",
+            src: "/assets/screenshot-mobile.png",
             sizes: "390x844",
             type: "image/png",
             label: "IKI Music Studio mobile view",
@@ -84,19 +86,19 @@ export default defineConfig({
         ],
         icons: [
           {
-            src: "/pwa-192x192.png",
+            src: "/assets/pwa-192x192.png",
             sizes: "192x192",
             type: "image/png",
             purpose: "any",
           },
           {
-            src: "/pwa-512x512.png",
+            src: "/assets/pwa-512x512.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "any",
           },
           {
-            src: "/pwa-maskable.png",
+            src: "/assets/pwa-maskable.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",

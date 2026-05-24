@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && npm run postbuild:pwa-assets",
+    "postbuild:pwa-assets": "node scripts/postbuild-pwa-assets.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
