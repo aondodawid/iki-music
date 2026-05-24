@@ -41,6 +41,9 @@ const WAV_MIME_TYPE = "audio/wav";
 const MIN_DURATION_SECONDS = 2;
 const MAX_DURATION_SECONDS = 30;
 const DEFAULT_DURATION_SECONDS = 6;
+const MUSICGEN_MODEL_FALLBACKS: Record<string, string[]> = {
+  "Xenova/musicgen-small": ["facebook/musicgen-small"],
+};
 const MUSICGEN_MAX_NEW_TOKENS = 1503;
 const MUSICGEN_TOKENS_PER_SECOND =
   MUSICGEN_MAX_NEW_TOKENS / MAX_DURATION_SECONDS;
@@ -209,6 +212,46 @@ async function getMusicGen(modelName: string): Promise<CachedMusicGen> {
   return cachedMusicGen;
 }
 
+function shouldTryModelFallback(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("could not locate file") ||
+    message.includes("404") ||
+    message.includes("not found")
+  );
+}
+
+async function getMusicGenWithFallback(
+  modelName: string,
+): Promise<CachedMusicGen> {
+  try {
+    return await getMusicGen(modelName);
+  } catch (primaryError) {
+    const fallbacks = MUSICGEN_MODEL_FALLBACKS[modelName] ?? [];
+
+    if (!shouldTryModelFallback(primaryError) || fallbacks.length === 0) {
+      throw primaryError;
+    }
+
+    for (const fallbackModel of fallbacks) {
+      try {
+        console.warn(
+          `Falling back from ${modelName} to ${fallbackModel} after model file resolution failure.`,
+        );
+        return await getMusicGen(fallbackModel);
+      } catch {
+        // Continue trying other fallbacks, if any.
+      }
+    }
+
+    throw primaryError;
+  }
+}
+
 export async function preloadMusicGenModel(): Promise<void> {
   const config = getAiEnvConfig();
 
@@ -220,7 +263,7 @@ export async function preloadMusicGenModel(): Promise<void> {
     `MusicGen model estimate: ~${ESTIMATED_MUSICGEN_MODEL_MIB} MiB for ${config.transformersModel}.`,
   );
 
-  await getMusicGen(config.transformersModel);
+  await getMusicGenWithFallback(config.transformersModel);
 }
 
 export function setMusicGenProgressReporter(
@@ -248,7 +291,9 @@ export async function generateWithTransformers(
     };
   }
 
-  const { tokenizer, model } = await getMusicGen(config.transformersModel);
+  const { tokenizer, model } = await getMusicGenWithFallback(
+    config.transformersModel,
+  );
   const { RawAudio } = await getTransformersModule();
   const inputs = tokenizer(input.prompt);
   const audioValues = await model.generate({
