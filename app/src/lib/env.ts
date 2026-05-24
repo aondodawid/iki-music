@@ -22,7 +22,7 @@ export function getAiEnvConfig(): AiEnvConfig {
       : undefined,
     huggingFaceModel: import.meta.env.VITE_HF_MODEL ?? "openai-community/gpt2",
     transformersModel:
-      import.meta.env.VITE_TRANSFORMERS_MODEL ?? "Xenova/musicgen-small",
+      import.meta.env.VITE_TRANSFORMERS_MODEL ?? "facebook/musicgen-small",
   };
 }
 

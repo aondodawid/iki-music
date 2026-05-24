@@ -42,6 +42,7 @@ const MIN_DURATION_SECONDS = 2;
 const MAX_DURATION_SECONDS = 30;
 const DEFAULT_DURATION_SECONDS = 6;
 const MUSICGEN_MODEL_FALLBACKS: Record<string, string[]> = {
+  "facebook/musicgen-small": ["Xenova/musicgen-small"],
   "Xenova/musicgen-small": ["facebook/musicgen-small"],
 };
 const MUSICGEN_MAX_NEW_TOKENS = 1503;
@@ -239,9 +240,6 @@ async function getMusicGenWithFallback(
 
     for (const fallbackModel of fallbacks) {
       try {
-        console.warn(
-          `Falling back from ${modelName} to ${fallbackModel} after model file resolution failure.`,
-        );
         return await getMusicGen(fallbackModel);
       } catch {
         // Continue trying other fallbacks, if any.

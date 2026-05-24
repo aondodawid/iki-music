@@ -6,4 +6,4 @@ VITE_HF_TOKEN=
 VITE_HF_MODEL=openai-community/gpt2
 
 # Transformers.js local model
-VITE_TRANSFORMERS_MODEL=Xenova/musicgen-small
+VITE_TRANSFORMERS_MODEL=facebook/musicgen-small
