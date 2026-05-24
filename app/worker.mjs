@@ -88,10 +88,16 @@ export default {
     }
 
     const assetResponse = await env.ASSETS.fetch(request);
+    const responseHeaders = withIsolationHeaders(assetResponse.headers);
+
+    if (url.pathname === "/assets/sw.js" || url.pathname === "/sw.js") {
+      responseHeaders.set("Service-Worker-Allowed", "/");
+    }
+
     return new Response(assetResponse.body, {
       status: assetResponse.status,
       statusText: assetResponse.statusText,
-      headers: withIsolationHeaders(assetResponse.headers),
+      headers: responseHeaders,
     });
   },
 };

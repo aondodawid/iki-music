@@ -8,3 +8,6 @@
 
 /hf/*
   Cross-Origin-Resource-Policy: cross-origin
+
+/assets/sw.js
+  Service-Worker-Allowed: /
