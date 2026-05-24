@@ -7,6 +7,8 @@ import type {
 const MIN_DURATION_SECONDS = 2;
 const MAX_DURATION_SECONDS = 12;
 const DEFAULT_DURATION_SECONDS = 6;
+const MIN_BPM = 60;
+const MAX_BPM = 200;
 
 function clampDurationSeconds(value: number | undefined): number {
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -18,6 +20,15 @@ function clampDurationSeconds(value: number | undefined): number {
     MIN_DURATION_SECONDS,
     Math.min(MAX_DURATION_SECONDS, rounded),
   );
+}
+
+function clampBpm(value: number | undefined): number | undefined {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return undefined;
+  }
+
+  const rounded = Math.round(value);
+  return Math.max(MIN_BPM, Math.min(MAX_BPM, rounded));
 }
 
 export function buildLiveJamRequest(input: {
@@ -40,6 +51,10 @@ export function buildLiveJamRequest(input: {
 export function buildChatPromptRequest(input: {
   sessionId: string;
   prompt: string;
+  durationSeconds?: number;
+  bpm?: number;
+  instrumentalOnly?: boolean;
+  includeDrums?: boolean;
   musicGenQualityPreset?: MusicGenQualityPreset;
   forceFailure?: boolean;
 }): ChatPromptRequest {
@@ -53,6 +68,10 @@ export function buildChatPromptRequest(input: {
     kind: "chat-generate",
     sessionId: input.sessionId,
     prompt,
+    durationSeconds: clampDurationSeconds(input.durationSeconds),
+    bpm: clampBpm(input.bpm),
+    instrumentalOnly: input.instrumentalOnly,
+    includeDrums: input.includeDrums,
     musicGenQualityPreset: input.musicGenQualityPreset,
     forceFailure: input.forceFailure,
   };

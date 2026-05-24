@@ -87,6 +87,10 @@ function App() {
   const [chatPrompt, setChatPrompt] = useState(
     "Create a mellow lo-fi guitar loop",
   );
+  const [chatDurationSeconds, setChatDurationSeconds] = useState(6);
+  const [chatBpm, setChatBpm] = useState("120");
+  const [chatInstrumentalOnly, setChatInstrumentalOnly] = useState(true);
+  const [chatIncludeDrums, setChatIncludeDrums] = useState(true);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<GenerationResult[]>([]);
   const [muted, setMuted] = useState(false);
@@ -352,6 +356,10 @@ function App() {
       const request = buildChatPromptRequest({
         sessionId: "session-chat",
         prompt: chatPrompt,
+        durationSeconds: chatDurationSeconds,
+        bpm: chatBpm.trim().length === 0 ? undefined : Number(chatBpm),
+        instrumentalOnly: chatInstrumentalOnly,
+        includeDrums: chatIncludeDrums,
         musicGenQualityPreset,
         forceFailure: chatFailure,
       });
@@ -570,6 +578,58 @@ function App() {
                 rows={4}
                 className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               />
+              <label htmlFor="chat-duration" className="text-sm font-medium">
+                Generated clip duration: {chatDurationSeconds}s
+              </label>
+              <input
+                id="chat-duration"
+                type="range"
+                min={2}
+                max={12}
+                step={1}
+                value={chatDurationSeconds}
+                onChange={(event) =>
+                  setChatDurationSeconds(Number(event.target.value))
+                }
+                aria-label="Chat generated duration (seconds)"
+              />
+              <label htmlFor="chat-bpm" className="text-sm font-medium">
+                Target BPM (optional, 60-200)
+              </label>
+              <input
+                id="chat-bpm"
+                type="number"
+                min={60}
+                max={200}
+                step={1}
+                inputMode="numeric"
+                value={chatBpm}
+                onChange={(event) => setChatBpm(event.target.value)}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              />
+              <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
+                <p className="text-sm font-medium">Chat generation options</p>
+                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={chatInstrumentalOnly}
+                    onChange={(event) =>
+                      setChatInstrumentalOnly(event.target.checked)
+                    }
+                  />
+                  Instrumental only
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={chatIncludeDrums}
+                    onChange={(event) =>
+                      setChatIncludeDrums(event.target.checked)
+                    }
+                  />
+                  Include drums groove
+                </label>
+              </div>
               <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
                 <input
                   type="checkbox"

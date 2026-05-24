@@ -18,6 +18,18 @@ export async function runProviderRequest(
   const slowPathMs = request.kind === "live-jam" ? 900 : 450;
   await wait(slowPathMs);
 
+  const chatPromptWithSettings =
+    request.kind === "chat-generate"
+      ? [
+          request.prompt,
+          request.bpm ? `tempo ${request.bpm} bpm` : null,
+          request.instrumentalOnly ? "instrumental only" : null,
+          request.includeDrums ? "include clear drum groove" : null,
+        ]
+          .filter((part): part is string => Boolean(part))
+          .join(", ")
+      : null;
+
   const localResult =
     request.kind === "live-jam"
       ? await generateWithTransformers({
@@ -26,7 +38,8 @@ export async function runProviderRequest(
           qualityPreset: request.musicGenQualityPreset,
         })
       : await generateWithTransformers({
-          prompt: request.prompt,
+          prompt: chatPromptWithSettings ?? request.prompt,
+          durationSeconds: request.durationSeconds,
           qualityPreset: request.musicGenQualityPreset,
         });
 

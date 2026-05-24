@@ -21,6 +21,10 @@ export interface ChatPromptRequest {
   kind: "chat-generate";
   sessionId: string;
   prompt: string;
+  durationSeconds?: number;
+  bpm?: number;
+  instrumentalOnly?: boolean;
+  includeDrums?: boolean;
   musicGenQualityPreset?: MusicGenQualityPreset;
   forceFailure?: boolean;
 }

@@ -1,4 +1,4 @@
-import { buildLiveJamRequest } from "./adapters";
+import { buildChatPromptRequest, buildLiveJamRequest } from "./adapters";
 
 describe("adapters", () => {
   it("clamps live duration to supported bounds", () => {
@@ -23,6 +23,37 @@ describe("adapters", () => {
       notes: "C G",
     });
 
+    expect(request.durationSeconds).toBe(6);
+  });
+
+  it("applies chat duration and bpm bounds", () => {
+    const low = buildChatPromptRequest({
+      sessionId: "chat-1",
+      prompt: "test",
+      durationSeconds: 1,
+      bpm: 40,
+    });
+
+    const high = buildChatPromptRequest({
+      sessionId: "chat-2",
+      prompt: "test",
+      durationSeconds: 99,
+      bpm: 300,
+    });
+
+    expect(low.durationSeconds).toBe(2);
+    expect(low.bpm).toBe(60);
+    expect(high.durationSeconds).toBe(12);
+    expect(high.bpm).toBe(200);
+  });
+
+  it("trims and validates chat prompt", () => {
+    const request = buildChatPromptRequest({
+      sessionId: "chat-3",
+      prompt: "  mellow synth pad  ",
+    });
+
+    expect(request.prompt).toBe("mellow synth pad");
     expect(request.durationSeconds).toBe(6);
   });
 });

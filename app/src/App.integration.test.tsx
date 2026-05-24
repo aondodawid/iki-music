@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
 import { resetFeatureFlags, setFeatureFlag } from "./lib/featureFlags";
@@ -51,6 +51,13 @@ describe("AI music modes integration", () => {
     const prompt = screen.getByLabelText("Prompt");
     await user.clear(prompt);
     await user.type(prompt, "Create upbeat drum and bass intro");
+    const duration = screen.getByLabelText("Chat generated duration (seconds)");
+    fireEvent.change(duration, { target: { value: 9 } });
+
+    const bpm = screen.getByLabelText("Target BPM (optional, 60-200)");
+    await user.clear(bpm);
+    await user.type(bpm, "140");
+
     await user.click(
       screen.getByRole("button", { name: "Generate from chat" }),
     );
@@ -60,6 +67,10 @@ describe("AI music modes integration", () => {
         screen.getByText(/Local simulated MusicGen output/),
       ).toBeInTheDocument();
     });
+
+    expect(
+      screen.getByText(/Local simulated MusicGen output.*\(9s\)/),
+    ).toBeInTheDocument();
 
     await user.clear(prompt);
     await user.click(

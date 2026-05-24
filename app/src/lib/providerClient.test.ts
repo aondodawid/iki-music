@@ -20,10 +20,15 @@ describe("providerClient", () => {
       kind: "chat-generate",
       sessionId: "session-chat",
       prompt: "Create ambient piano intro",
+      durationSeconds: 10,
+      bpm: 128,
+      instrumentalOnly: true,
+      includeDrums: true,
     });
 
     expect(result.mode).toBe("chat-generate");
     expect(result.content).toContain("Local simulated MusicGen output");
+    expect(result.content).toContain("10s");
   });
 
   it("throws for forced provider failures", async () => {
