@@ -45,6 +45,8 @@ const MUSICGEN_MODEL_FALLBACKS: Record<string, string[]> = {
   "facebook/musicgen-small": ["Xenova/musicgen-small"],
   "Xenova/musicgen-small": ["facebook/musicgen-small"],
 };
+const REMOTE_MODEL_LOAD_RETRY_ATTEMPTS = 3;
+const REMOTE_MODEL_LOAD_RETRY_DELAY_MS = 800;
 const MUSICGEN_MAX_NEW_TOKENS = 1503;
 const MUSICGEN_TOKENS_PER_SECOND =
   MUSICGEN_MAX_NEW_TOKENS / MAX_DURATION_SECONDS;
@@ -95,6 +97,27 @@ function estimateMusicGenTokensForPreset(
   );
 
   return Math.max(1, Math.min(MUSICGEN_MAX_NEW_TOKENS, estimatedTokens));
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function isRetriableModelLoadError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("could not locate file") ||
+    message.includes("404") ||
+    message.includes("not found") ||
+    message.includes("network") ||
+    message.includes("failed to fetch")
+  );
 }
 
 async function getMusicGen(modelName: string): Promise<CachedMusicGen> {
@@ -233,7 +256,33 @@ async function getMusicGen(modelName: string): Promise<CachedMusicGen> {
     loaded = await loadFromPretrained(true);
   } catch {
     envWithRemoteFlag.allowRemoteModels = true;
-    loaded = await loadFromPretrained(false);
+    let lastRemoteError: unknown = null;
+
+    for (
+      let attempt = 1;
+      attempt <= REMOTE_MODEL_LOAD_RETRY_ATTEMPTS;
+      attempt += 1
+    ) {
+      try {
+        loaded = await loadFromPretrained(false);
+        break;
+      } catch (remoteError) {
+        lastRemoteError = remoteError;
+        const shouldRetry =
+          attempt < REMOTE_MODEL_LOAD_RETRY_ATTEMPTS &&
+          isRetriableModelLoadError(remoteError);
+
+        if (!shouldRetry) {
+          throw remoteError;
+        }
+
+        await delay(REMOTE_MODEL_LOAD_RETRY_DELAY_MS * attempt);
+      }
+    }
+
+    if (!loaded && lastRemoteError) {
+      throw lastRemoteError;
+    }
   } finally {
     envWithRemoteFlag.allowRemoteModels = previousAllowRemoteModels;
   }
@@ -245,16 +294,7 @@ async function getMusicGen(modelName: string): Promise<CachedMusicGen> {
 }
 
 function shouldTryModelFallback(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const message = error.message.toLowerCase();
-  return (
-    message.includes("could not locate file") ||
-    message.includes("404") ||
-    message.includes("not found")
-  );
+  return isRetriableModelLoadError(error);
 }
 
 async function getMusicGenWithFallback(
