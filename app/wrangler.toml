@@ -1,4 +1,4 @@
-name = "iki-music-app"
+name = "iki-music"
 compatibility_date = "2026-05-24"
 main = "./worker.mjs"
 
