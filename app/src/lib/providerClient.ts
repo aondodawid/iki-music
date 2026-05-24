@@ -1,5 +1,6 @@
 import type { GenerationRequest, GenerationResult } from "./types";
 import { generateWithTransformers } from "./localInference";
+import { translateToEnglishIfNeeded } from "./translationApi";
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -18,10 +19,15 @@ export async function runProviderRequest(
   const slowPathMs = request.kind === "live-jam" ? 900 : 450;
   await wait(slowPathMs);
 
+  const normalizedPrompt =
+    request.kind === "chat-generate"
+      ? await translateToEnglishIfNeeded(request.prompt)
+      : null;
+
   const chatPromptWithSettings =
     request.kind === "chat-generate"
       ? [
-          request.prompt,
+          normalizedPrompt,
           request.bpm ? `tempo ${request.bpm} bpm` : null,
           request.instrumentalOnly ? "instrumental only" : null,
           request.includeDrums ? "include clear drum groove" : null,
