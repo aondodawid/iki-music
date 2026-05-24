@@ -116,7 +116,9 @@ function isRetriableModelLoadError(error: unknown): boolean {
     message.includes("404") ||
     message.includes("not found") ||
     message.includes("network") ||
-    message.includes("failed to fetch")
+    message.includes("failed to fetch") ||
+    message.includes("tokenizer_class") ||
+    message.includes("cannot read properties of undefined")
   );
 }
 
