@@ -20,6 +20,7 @@ import {
 } from "./lib/timelineStorage";
 import { AppHeader } from "@/components/studio/AppHeader";
 import { ChatGeneratePanel } from "@/components/studio/ChatGeneratePanel";
+import { AudioVisualizerPanel } from "@/components/studio/AudioVisualizerPanel";
 import { GenerationModeSwitch } from "@/components/studio/GenerationModeSwitch";
 import { GenerationStatusPanel } from "@/components/studio/GenerationStatusPanel";
 import { GenerationTimelinePanel } from "@/components/studio/GenerationTimelinePanel";
@@ -796,6 +797,8 @@ function App() {
         onDeleteEntry={handleDeleteEntryClick}
         onTogglePreview={handleTogglePreview}
       />
+
+      <AudioVisualizerPanel ui={ui} timeline={timeline} />
     </main>
   );
 }

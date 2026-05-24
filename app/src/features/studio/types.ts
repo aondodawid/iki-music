@@ -65,6 +65,13 @@ export interface UiText {
   error: string;
   generatedTimeline: string;
   generatedResults: string;
+  audioVisualizer: string;
+  visualizerMode: string;
+  visualizer2d: string;
+  visualizer3d: string;
+  visualizerTrack: string;
+  visualizerNoAudio: string;
+  visualizerHint: string;
   noGenerationsYet: string;
   deleteTrack: string;
   deleteAllTracks: string;

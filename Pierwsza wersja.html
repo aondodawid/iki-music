@@ -1,0 +1,940 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wizualizer RC-505 Advanced</title>
+  <style>
+    :root {
+      --bg: #05070a;
+      --panel: rgba(12, 16, 20, 0.84);
+      --panel-border: rgba(255,255,255,0.12);
+      --text: #f2f5f7;
+      --muted: #a9b6bf;
+      --accent: #18b6c9;
+      --accent-2: #8d5cff;
+      --good: #3cb371;
+      --warn: #ffb347;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at top, #0d1720 0%, #05070a 48%, #010203 100%);
+      color: var(--text);
+      font-family: Inter, Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .ui {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      width: min(380px, calc(100vw - 32px));
+      max-height: calc(100vh - 32px);
+      overflow: auto;
+      padding: 16px;
+      border-radius: 18px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      backdrop-filter: blur(12px);
+      z-index: 10;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    }
+
+    .ui.hidden { display: none; }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      line-height: 1.1;
+    }
+    .sub {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .status {
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: #dfe8ee;
+    }
+    .status.ok { border-color: rgba(60,179,113,0.35); color: #c9f2db; }
+    .status.warn { border-color: rgba(255,179,71,0.35); color: #ffe5bc; }
+
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    button, select, input[type="range"] {
+      width: 100%;
+    }
+
+    button, select {
+      border: 0;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+    }
+
+    button {
+      cursor: pointer;
+      color: white;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 10px 25px rgba(24,182,201,0.2);
+    }
+
+    button.secondary {
+      background: rgba(255,255,255,0.08);
+      box-shadow: none;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    label {
+      display: block;
+      margin: 14px 0 6px;
+      font-size: 13px;
+      color: #d8e0e6;
+    }
+
+    .range-wrap {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    input[type="range"] {
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .value {
+      font-size: 12px;
+      color: var(--muted);
+      min-width: 44px;
+      text-align: right;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0 2px;
+    }
+
+    .chip {
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.05);
+      font-size: 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .chip.active {
+      background: rgba(24,182,201,0.18);
+      border-color: rgba(24,182,201,0.5);
+      color: #dcfbff;
+    }
+
+    .tip {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    @media (max-width: 640px) {
+      .ui {
+        width: calc(100vw - 20px);
+        top: 10px;
+        left: 10px;
+        max-height: calc(100vh - 20px);
+      }
+      h1 { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ui" id="ui">
+    <h1>Wizualizer RC-505 Advanced</h1>
+    <p class="sub">Ulepszona wersja do przeglądarki pod RC-505, gitarę, NUX Amp Academy i mikrofon. Nadal prosta w obsłudze: włącz dźwięk, wybierz tryb, potem fullscreen.</p>
+
+    <div class="status warn" id="status">Stan: jeszcze nie nasłuchuję. Ta wersja lepiej radzi sobie z brudem, dynamiką i nierównym sygnałem.</div>
+
+    <div class="row">
+      <button id="startBtn">1. Włącz dźwięk</button>
+      <button id="fullscreenBtn" class="secondary">2. Pełny ekran</button>
+      <button id="hideBtn" class="secondary">Ukryj panel</button>
+    </div>
+
+    <label for="deviceSelect">Źródło dźwięku</label>
+    <select id="deviceSelect">
+      <option value="">Domyślne wejście Windows</option>
+    </select>
+
+    <label>Tryb wizualizacji</label>
+    <div class="chips" id="modeChips">
+      <div class="chip active" data-mode="orb">Orb</div>
+      <div class="chip" data-mode="rings">Rings</div>
+      <div class="chip" data-mode="bars">Bars</div>
+      <div class="chip" data-mode="nebula">Nebula</div>
+      <div class="chip" data-mode="vocoder">Vocoder</div>
+      <div class="chip" data-mode="adaptive">Adaptive</div>
+      <div class="chip" data-mode="geo">Geo Pulse</div>
+    </div>
+
+    <label for="paletteSelect">Paleta kolorów</label>
+    <select id="paletteSelect">
+      <option value="ocean">Ocean</option>
+      <option value="fire">Fire</option>
+      <option value="neon">Neon</option>
+      <option value="mono">Mono</option>
+      <option value="fluoro">Fluoro</option>
+    </select>
+
+    <label for="gainRange">Czułość sygnału</label>
+    <div class="range-wrap">
+      <input id="gainRange" type="range" min="0.5" max="3" value="1.4" step="0.1" />
+      <div class="value" id="gainValue">1.4x</div>
+    </div>
+
+    <label for="bassRange">Moc basu</label>
+    <div class="range-wrap">
+      <input id="bassRange" type="range" min="0.5" max="3" value="1.5" step="0.1" />
+      <div class="value" id="bassValue">1.5x</div>
+    </div>
+
+    <label for="smoothRange">Wygładzenie ruchu</label>
+    <div class="range-wrap">
+      <input id="smoothRange" type="range" min="0.5" max="0.98" value="0.82" step="0.01" />
+      <div class="value" id="smoothValue">0.82</div>
+    </div>
+
+    <label for="trailRange">Smuga / poświata</label>
+    <div class="range-wrap">
+      <input id="trailRange" type="range" min="0.02" max="0.35" value="0.14" step="0.01" />
+      <div class="value" id="trailValue">0.14</div>
+    </div>
+
+
+    <label for="harmonicRange">Czułość harmonicznych</label>
+    <div class="range-wrap">
+      <input id="harmonicRange" type="range" min="0.5" max="3" value="1.6" step="0.1" />
+      <div class="value" id="harmonicValue">1.6x</div>
+    </div>
+
+    <label for="vocoderRange">Moc efektu vocoder</label>
+    <div class="range-wrap">
+      <input id="vocoderRange" type="range" min="0" max="3" value="1.4" step="0.1" />
+      <div class="value" id="vocoderValue">1.4x</div>
+    </div>
+
+
+    <label for="noiseGateRange">Brud / noise gate</label>
+    <div class="range-wrap">
+      <input id="noiseGateRange" type="range" min="0" max="0.4" value="0.08" step="0.01" />
+      <div class="value" id="noiseGateValue">0.08</div>
+    </div>
+
+    <label for="compressRange">Kompresja wizualna</label>
+    <div class="range-wrap">
+      <input id="compressRange" type="range" min="1" max="6" value="2.4" step="0.1" />
+      <div class="value" id="compressValue">2.4x</div>
+    </div>
+
+    <label for="dynamicsRange">Dynamika ruchu</label>
+    <div class="range-wrap">
+      <input id="dynamicsRange" type="range" min="0.5" max="3" value="1.8" step="0.1" />
+      <div class="value" id="dynamicsValue">1.8x</div>
+    </div>
+
+    <p class="tip">
+      Prosta instrukcja:<br>
+      1. Kliknij <b>Włącz dźwięk</b>.<br>
+      2. Jeśli trzeba, wybierz wejście audio z listy.<br>
+      3. Włącz pełny ekran.<br>
+      4. Ukryj panel.<br><br>
+      Do gitary i wokalu z większą ilością brudu spróbuj trybu <b>Adaptive</b> albo <b>Vocoder</b>. Jeśli lubisz Orb i Rings, sprawdź też nowy tryb <b>Geo Pulse</b>.<br><br>
+      Podwójne kliknięcie w ekran pokazuje panel z powrotem.
+    </p>
+
+    <p class="small">Jeśli nic nie reaguje, sprawdź zgodę na mikrofon w przeglądarce i wejście audio w Windows.</p>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const ui = document.getElementById('ui');
+    const statusBox = document.getElementById('status');
+    const deviceSelect = document.getElementById('deviceSelect');
+    const paletteSelect = document.getElementById('paletteSelect');
+    const modeChips = document.querySelectorAll('.chip');
+    const startBtn = document.getElementById('startBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const hideBtn = document.getElementById('hideBtn');
+
+    const gainRange = document.getElementById('gainRange');
+    const bassRange = document.getElementById('bassRange');
+    const smoothRange = document.getElementById('smoothRange');
+    const trailRange = document.getElementById('trailRange');
+    const harmonicRange = document.getElementById('harmonicRange');
+    const vocoderRange = document.getElementById('vocoderRange');
+    const noiseGateRange = document.getElementById('noiseGateRange');
+    const compressRange = document.getElementById('compressRange');
+    const dynamicsRange = document.getElementById('dynamicsRange');
+
+    const gainValue = document.getElementById('gainValue');
+    const bassValue = document.getElementById('bassValue');
+    const smoothValue = document.getElementById('smoothValue');
+    const trailValue = document.getElementById('trailValue');
+    const harmonicValue = document.getElementById('harmonicValue');
+    const vocoderValue = document.getElementById('vocoderValue');
+    const noiseGateValue = document.getElementById('noiseGateValue');
+    const compressValue = document.getElementById('compressValue');
+    const dynamicsValue = document.getElementById('dynamicsValue');
+
+    let audioContext = null;
+    let analyser = null;
+    let dataArray = null;
+    let currentStream = null;
+    let animationId = null;
+    let currentMode = 'orb';
+    let smoothedBass = 0;
+    let smoothedMid = 0;
+    let smoothedTreble = 0;
+    let globalEnergy = 0;
+    let harmonicEnergy = 0;
+    let vocalEnergy = 0;
+    let formantEnergy = 0;
+    let dirtyEnergy = 0;
+    let transientEnergy = 0;
+    let time = 0;
+
+    const particles = Array.from({ length: 140 }, () => ({
+      angle: Math.random() * Math.PI * 2,
+      distance: 80 + Math.random() * 360,
+      size: 1 + Math.random() * 3,
+      speed: 0.001 + Math.random() * 0.004,
+      seed: Math.random() * 1000
+    }));
+
+    const palettes = {
+      ocean: ['#18b6c9', '#53f5ff', '#3578ff', '#b06cff'],
+      fire: ['#ff5b2e', '#ff9f43', '#ffd166', '#ff2d55'],
+      neon: ['#00f5d4', '#f15bb5', '#9b5cff', '#fee440'],
+      mono: ['#ffffff', '#d7e3ea', '#90a4ae', '#4dd0e1'],
+      fluoro: ['#39ff14', '#00f5ff', '#ff3df2', '#ffe600']
+    };
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function setStatus(text, type = 'warn') {
+      statusBox.textContent = text;
+      statusBox.className = 'status ' + type;
+    }
+
+    function updateRangeLabels() {
+      gainValue.textContent = Number(gainRange.value).toFixed(1) + 'x';
+      bassValue.textContent = Number(bassRange.value).toFixed(1) + 'x';
+      smoothValue.textContent = Number(smoothRange.value).toFixed(2);
+      trailValue.textContent = Number(trailRange.value).toFixed(2);
+      harmonicValue.textContent = Number(harmonicRange.value).toFixed(1) + 'x';
+      vocoderValue.textContent = Number(vocoderRange.value).toFixed(1) + 'x';
+      noiseGateValue.textContent = Number(noiseGateRange.value).toFixed(2);
+      compressValue.textContent = Number(compressRange.value).toFixed(1) + 'x';
+      dynamicsValue.textContent = Number(dynamicsRange.value).toFixed(1) + 'x';
+    }
+
+    [gainRange, bassRange, smoothRange, trailRange, harmonicRange, vocoderRange, noiseGateRange, compressRange, dynamicsRange].forEach(el => el.addEventListener('input', updateRangeLabels));
+    updateRangeLabels();
+
+    modeChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        modeChips.forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        currentMode = chip.dataset.mode;
+      });
+    });
+
+    hideBtn.addEventListener('click', () => ui.classList.add('hidden'));
+    window.addEventListener('dblclick', () => ui.classList.remove('hidden'));
+
+    fullscreenBtn.addEventListener('click', async () => {
+      try {
+        if (!document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+        } else {
+          await document.exitFullscreen();
+        }
+      } catch (error) {
+        setStatus('Nie udało się włączyć pełnego ekranu.', 'warn');
+      }
+    });
+
+    async function populateDevices() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioInputs = devices.filter(d => d.kind === 'audioinput');
+        deviceSelect.innerHTML = '<option value="">Domyślne wejście Windows</option>';
+        audioInputs.forEach(device => {
+          const option = document.createElement('option');
+          option.value = device.deviceId;
+          option.textContent = device.label || 'Wejście audio';
+          deviceSelect.appendChild(option);
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    async function startAudio() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus('Ta przeglądarka nie pozwala na dostęp do mikrofonu.', 'warn');
+        return;
+      }
+
+      try {
+        if (currentStream) {
+          currentStream.getTracks().forEach(track => track.stop());
+        }
+
+        const constraints = {
+          audio: deviceSelect.value
+            ? { deviceId: { exact: deviceSelect.value }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+            : { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+          video: false
+        };
+
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        if (!audioContext) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+
+        const source = audioContext.createMediaStreamSource(currentStream);
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 1024;
+        analyser.smoothingTimeConstant = 0.75;
+        source.connect(analyser);
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+        setStatus('Nasłuch działa. Jeśli sygnał jest słaby, zwiększ czułość.', 'ok');
+        startBtn.textContent = 'Dźwięk działa';
+
+        await populateDevices();
+
+        if (!animationId) animate();
+      } catch (error) {
+        console.error(error);
+        setStatus('Nie udało się uruchomić dźwięku. Sprawdź zgodę na mikrofon i wejście audio.', 'warn');
+      }
+    }
+
+    startBtn.addEventListener('click', startAudio);
+    deviceSelect.addEventListener('change', () => {
+      if (currentStream) startAudio();
+    });
+
+    function averageRange(data, start, end, gain = 1) {
+      let sum = 0;
+      const safeEnd = Math.max(start + 1, Math.min(end, data.length));
+      for (let i = start; i < safeEnd; i++) sum += data[i];
+      return ((sum / (safeEnd - start)) / 255) * gain;
+    }
+
+
+    function averageWindow(data, center, width, gain = 1) {
+      const start = Math.max(0, Math.floor(center - width));
+      const end = Math.min(data.length, Math.floor(center + width));
+      let sum = 0;
+      let count = 0;
+      for (let i = start; i < end; i++) {
+        sum += data[i];
+        count++;
+      }
+      return count ? ((sum / count) / 255) * gain : 0;
+    }
+
+    function detectHarmonics(data) {
+      const hGain = Number(harmonicRange.value);
+      const fundamental = averageWindow(data, 18, 5, hGain);
+      const second = averageWindow(data, 36, 6, hGain);
+      const third = averageWindow(data, 54, 7, hGain);
+      const fourth = averageWindow(data, 72, 8, hGain);
+      return (fundamental * 0.34 + second * 0.28 + third * 0.22 + fourth * 0.16);
+    }
+
+    function detectVocalBand(data) {
+      const vGain = Number(vocoderRange.value);
+      const lowFormant = averageWindow(data, 90, 14, vGain);
+      const midFormant = averageWindow(data, 140, 16, vGain);
+      const highPresence = averageWindow(data, 220, 22, vGain);
+      return {
+        vocal: (lowFormant * 0.45 + midFormant * 0.35 + highPresence * 0.2),
+        formant: (midFormant * 0.6 + highPresence * 0.4)
+      };
+    }
+
+
+    function applyNoiseGate(value) {
+      const threshold = Number(noiseGateRange.value);
+      return value < threshold ? 0 : (value - threshold) / Math.max(0.001, 1 - threshold);
+    }
+
+    function applyCompression(value) {
+      const ratio = Number(compressRange.value);
+      return 1 - Math.exp(-Math.max(0, value) * ratio);
+    }
+
+    function detectDirt(data) {
+      const lowMid = averageWindow(data, 48, 12, 1);
+      const upperMid = averageWindow(data, 110, 16, 1);
+      const fizz = averageWindow(data, 250, 24, 1);
+      return lowMid * 0.4 + upperMid * 0.35 + fizz * 0.25;
+    }
+
+    function detectTransients(data) {
+      let sum = 0;
+      const end = Math.min(140, data.length - 1);
+      for (let i = 6; i < end; i++) {
+        sum += Math.abs(data[i] - data[i - 1]) / 255;
+      }
+      return sum / Math.max(1, end - 6);
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function getPalette() {
+      return palettes[paletteSelect.value] || palettes.ocean;
+    }
+
+    function clearFrame() {
+      const trail = Number(trailRange.value);
+      ctx.fillStyle = `rgba(2, 4, 8, ${trail})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function drawBackgroundGlow(centerX, centerY, radius, colors, pulse) {
+      const g = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius * 2.4);
+      g.addColorStop(0, hexToRgba(colors[0], 0.18 + pulse * 0.12));
+      g.addColorStop(0.35, hexToRgba(colors[1], 0.08 + pulse * 0.08));
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius * 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawOrb(centerX, centerY, bass, mid, treble, colors) {
+      const baseRadius = 90 + bass * 170;
+      drawBackgroundGlow(centerX, centerY, baseRadius, colors, bass);
+
+      for (let i = 0; i < 3; i++) {
+        const r = baseRadius + i * (28 + treble * 20);
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+        ctx.strokeStyle = hexToRgba(colors[(i + 1) % colors.length], 0.18 + i * 0.07);
+        ctx.lineWidth = 2 + mid * 5;
+        ctx.stroke();
+      }
+
+      const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, baseRadius);
+      gradient.addColorStop(0, hexToRgba(colors[0], 0.95));
+      gradient.addColorStop(0.45, hexToRgba(colors[1], 0.55));
+      gradient.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, baseRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      const rays = 90;
+      for (let i = 0; i < rays; i++) {
+        const angle = (Math.PI * 2 * i) / rays + time * 0.0007;
+        const amp = 16 + Math.sin(i * 0.9 + time * 0.004) * 10 + treble * 120;
+        const inner = baseRadius * 0.8;
+        const outer = baseRadius + amp + (i % 3) * mid * 40;
+        const x1 = centerX + Math.cos(angle) * inner;
+        const y1 = centerY + Math.sin(angle) * inner;
+        const x2 = centerX + Math.cos(angle) * outer;
+        const y2 = centerY + Math.sin(angle) * outer;
+        ctx.strokeStyle = hexToRgba(colors[i % colors.length], 0.5);
+        ctx.lineWidth = 1.5 + treble * 3;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+    }
+
+    function drawRings(centerX, centerY, bass, mid, treble, colors) {
+      const pulse = 120 + bass * 200;
+      drawBackgroundGlow(centerX, centerY, pulse, colors, mid);
+      for (let i = 0; i < 8; i++) {
+        const wobble = Math.sin(time * 0.002 + i * 0.7) * (10 + treble * 30);
+        const radius = 60 + i * 38 + bass * 50 + wobble;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = hexToRgba(colors[i % colors.length], 0.12 + i * 0.04);
+        ctx.lineWidth = 2 + mid * 6;
+        ctx.stroke();
+      }
+
+      for (let i = 0; i < 220; i++) {
+        const angle = (i / 220) * Math.PI * 2;
+        const r = pulse + Math.sin(angle * 6 + time * 0.005) * 18 + treble * 100;
+        const x = centerX + Math.cos(angle) * r;
+        const y = centerY + Math.sin(angle) * r;
+        ctx.fillStyle = hexToRgba(colors[i % colors.length], 0.7);
+        ctx.beginPath();
+        ctx.arc(x, y, 1 + mid * 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawBars(centerX, centerY, bass, mid, treble, colors) {
+      const barCount = 96;
+      const width = canvas.width / barCount;
+      for (let i = 0; i < barCount; i++) {
+        const idx = Math.floor((i / barCount) * dataArray.length);
+        const value = (dataArray[idx] / 255) * Number(gainRange.value);
+        const h = value * canvas.height * 0.45;
+        const x = i * width;
+        const y = centerY - h / 2;
+        ctx.fillStyle = hexToRgba(colors[i % colors.length], 0.65);
+        ctx.fillRect(x, y, Math.max(2, width - 2), h);
+      }
+
+      const orb = 40 + bass * 110;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, orb, 0, Math.PI * 2);
+      ctx.fillStyle = hexToRgba(colors[0], 0.55);
+      ctx.fill();
+    }
+
+    function drawNebula(centerX, centerY, bass, mid, treble, colors) {
+      drawBackgroundGlow(centerX, centerY, 120 + bass * 180, colors, bass);
+      particles.forEach((p, index) => {
+        p.angle += p.speed * (1 + treble * 8);
+        const wobble = Math.sin(time * 0.002 + p.seed) * (10 + mid * 40);
+        const dist = p.distance + wobble + bass * 60;
+        const x = centerX + Math.cos(p.angle + p.seed * 0.01) * dist;
+        const y = centerY + Math.sin(p.angle * 1.2 + p.seed * 0.02) * dist * 0.6;
+        const size = p.size + bass * 5 + (index % 4 === 0 ? treble * 3 : 0);
+        ctx.fillStyle = hexToRgba(colors[index % colors.length], 0.25 + treble * 0.5);
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      ctx.strokeStyle = hexToRgba(colors[1], 0.28);
+      ctx.lineWidth = 1.5 + mid * 2;
+      for (let i = 0; i < 6; i++) {
+        ctx.beginPath();
+        for (let a = 0; a <= Math.PI * 2 + 0.1; a += 0.08) {
+          const r = 130 + i * 24 + Math.sin(a * 3 + time * 0.003 + i) * (18 + bass * 65);
+          const x = centerX + Math.cos(a) * r;
+          const y = centerY + Math.sin(a) * r * 0.65;
+          if (a === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    }
+
+    function hexToRgba(hex, alpha) {
+      const clean = hex.replace('#', '');
+      const bigint = parseInt(clean, 16);
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function animate() {
+      animationId = requestAnimationFrame(animate);
+      time += 16;
+      clearFrame();
+
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const colors = getPalette();
+
+      let bass = 0.05;
+      let mid = 0.05;
+      let treble = 0.05;
+
+      if (analyser && dataArray) {
+        analyser.getByteFrequencyData(dataArray);
+        const gain = Number(gainRange.value);
+        const bassBoost = Number(bassRange.value);
+        const smooth = Number(smoothRange.value);
+
+        const rawBass = averageRange(dataArray, 1, 24, gain * bassBoost);
+        const rawMid = averageRange(dataArray, 24, 120, gain);
+        const rawTreble = averageRange(dataArray, 120, 320, gain);
+        const rawHarmonic = detectHarmonics(dataArray);
+        const vocalBands = detectVocalBand(dataArray);
+        const rawDirt = detectDirt(dataArray);
+        const rawTransients = detectTransients(dataArray) * Number(dynamicsRange.value);
+
+        const gatedBass = applyCompression(applyNoiseGate(rawBass));
+        const gatedMid = applyCompression(applyNoiseGate(rawMid));
+        const gatedTreble = applyCompression(applyNoiseGate(rawTreble));
+        const gatedHarmonic = applyCompression(applyNoiseGate(rawHarmonic));
+        const gatedVocal = applyCompression(applyNoiseGate(vocalBands.vocal));
+        const gatedFormant = applyCompression(applyNoiseGate(vocalBands.formant));
+        const gatedDirt = applyCompression(applyNoiseGate(rawDirt));
+        const gatedTransient = applyCompression(applyNoiseGate(rawTransients));
+
+        smoothedBass = lerp(gatedBass, smoothedBass, smooth);
+        smoothedMid = lerp(gatedMid, smoothedMid, smooth);
+        smoothedTreble = lerp(gatedTreble, smoothedTreble, smooth);
+        harmonicEnergy = lerp(gatedHarmonic, harmonicEnergy, smooth);
+        vocalEnergy = lerp(gatedVocal, vocalEnergy, smooth);
+        formantEnergy = lerp(gatedFormant, formantEnergy, smooth);
+        dirtyEnergy = lerp(gatedDirt, dirtyEnergy, smooth);
+        transientEnergy = lerp(gatedTransient, transientEnergy, smooth * 0.8);
+        globalEnergy = lerp((gatedBass + gatedMid + gatedTreble + gatedHarmonic + gatedDirt) / 5, globalEnergy, smooth);
+
+        bass = smoothedBass;
+        mid = smoothedMid;
+        treble = smoothedTreble;
+      }
+
+      if (currentMode === 'orb') drawOrb(centerX, centerY, bass, mid, treble, colors);
+      if (currentMode === 'rings') drawRings(centerX, centerY, bass, mid, treble, colors);
+      if (currentMode === 'bars') drawBars(centerX, centerY, bass, mid, treble, colors);
+      if (currentMode === 'nebula') drawNebula(centerX, centerY, bass, mid, treble, colors);
+      if (currentMode === 'vocoder') drawVocoder(centerX, centerY, bass, mid, treble, harmonicEnergy, vocalEnergy, formantEnergy, colors);
+      if (currentMode === 'adaptive') drawAdaptive(centerX, centerY, bass, mid, treble, harmonicEnergy, vocalEnergy, dirtyEnergy, transientEnergy, colors);
+      if (currentMode === 'geo') drawGeo(centerX, centerY, bass, mid, treble, harmonicEnergy, vocalEnergy, dirtyEnergy, transientEnergy, colors);
+
+      drawHud(centerX, centerY, bass, mid, treble, harmonicEnergy, vocalEnergy, dirtyEnergy, transientEnergy, colors);
+    }
+
+
+    function drawVocoder(centerX, centerY, bass, mid, treble, harmonic, vocal, formant, colors) {
+      const columns = 32;
+      const spacing = canvas.width / (columns + 2);
+      const baseHeight = canvas.height * 0.18;
+      drawBackgroundGlow(centerX, centerY, 150 + harmonic * 180, colors, vocal);
+
+      for (let i = 0; i < columns; i++) {
+        const band = Math.floor((i / columns) * Math.min(dataArray.length, 280));
+        const raw = dataArray ? (dataArray[band] / 255) : 0;
+        const barHeight = baseHeight + raw * 240 + vocal * 120 + (i % 2 ? formant * 90 : harmonic * 90);
+        const x = spacing + i * spacing;
+        const y = centerY - barHeight / 2;
+        const color = colors[i % colors.length];
+        ctx.fillStyle = hexToRgba(color, 0.72);
+        ctx.fillRect(x, y, spacing * 0.62, barHeight);
+
+        ctx.fillStyle = hexToRgba('#ffffff', 0.2 + formant * 0.4);
+        ctx.fillRect(x, centerY - 2, spacing * 0.62, 4);
+      }
+
+      const rings = 5;
+      for (let i = 0; i < rings; i++) {
+        const r = 70 + i * 28 + harmonic * 80 + Math.sin(time * 0.004 + i) * (8 + vocal * 24);
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+        ctx.strokeStyle = hexToRgba(colors[(i + 1) % colors.length], 0.18 + formant * 0.3);
+        ctx.lineWidth = 2 + vocal * 5;
+        ctx.stroke();
+      }
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 55 + bass * 80 + harmonic * 45, 0, Math.PI * 2);
+      const core = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 120);
+      core.addColorStop(0, hexToRgba(colors[0], 0.95));
+      core.addColorStop(0.5, hexToRgba(colors[1], 0.45));
+      core.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = core;
+      ctx.fill();
+    }
+
+
+    function drawAdaptive(centerX, centerY, bass, mid, treble, harmonic, vocal, dirt, transients, colors) {
+      drawBackgroundGlow(centerX, centerY, 160 + bass * 160, colors, vocal + dirt * 0.5);
+      const spokes = 72;
+      for (let i = 0; i < spokes; i++) {
+        const angle = (Math.PI * 2 * i) / spokes + time * 0.0008;
+        const pulse = 70 + bass * 120 + harmonic * 60 + Math.sin(time * 0.004 + i) * (10 + transients * 80);
+        const inner = 30 + vocal * 40;
+        const outer = inner + pulse + (i % 2 ? dirt * 120 : treble * 120);
+        const x1 = centerX + Math.cos(angle) * inner;
+        const y1 = centerY + Math.sin(angle) * inner;
+        const x2 = centerX + Math.cos(angle) * outer;
+        const y2 = centerY + Math.sin(angle) * outer;
+        ctx.strokeStyle = hexToRgba(colors[i % colors.length], 0.18 + dirt * 0.5);
+        ctx.lineWidth = 1 + transients * 5;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+
+      for (let i = 0; i < 7; i++) {
+        const r = 55 + i * 24 + harmonic * 40 + Math.sin(time * 0.003 + i) * (8 + vocal * 18);
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+        ctx.strokeStyle = hexToRgba(colors[(i + 1) % colors.length], 0.12 + vocal * 0.25);
+        ctx.lineWidth = 1.5 + mid * 2.5;
+        ctx.stroke();
+      }
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 40 + bass * 90 + transients * 50, 0, Math.PI * 2);
+      const core = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 140);
+      core.addColorStop(0, hexToRgba(colors[0], 0.95));
+      core.addColorStop(0.55, hexToRgba(colors[1], 0.4));
+      core.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = core;
+      ctx.fill();
+    }
+
+
+    function drawGeo(centerX, centerY, bass, mid, treble, harmonic, vocal, dirt, transients, colors) {
+      const base = 90 + bass * 120 + harmonic * 60;
+      drawBackgroundGlow(centerX, centerY, base * 1.2, colors, 0.6 + vocal * 0.4);
+
+      const layers = 7;
+      for (let i = 0; i < layers; i++) {
+        const sides = 6 + (i % 3) * 2;
+        const radius = base + i * (28 + mid * 10) + Math.sin(time * 0.003 + i) * (8 + transients * 20);
+        const rotation = time * 0.0008 * (i % 2 === 0 ? 1 : -1) + i * 0.3;
+
+        ctx.beginPath();
+        for (let s = 0; s <= sides; s++) {
+          const angle = rotation + (Math.PI * 2 * s) / sides;
+          const wobble = 1 + Math.sin(angle * 3 + time * 0.004) * (0.02 + dirt * 0.08);
+          const x = centerX + Math.cos(angle) * radius * wobble;
+          const y = centerY + Math.sin(angle) * radius * wobble;
+          if (s === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.strokeStyle = hexToRgba(colors[i % colors.length], 0.22 + i * 0.06);
+        ctx.lineWidth = 1.5 + mid * 3;
+        ctx.stroke();
+      }
+
+      const spokes = 24;
+      for (let i = 0; i < spokes; i++) {
+        const angle = (Math.PI * 2 * i) / spokes + time * 0.0009;
+        const inner = 28 + vocal * 30;
+        const outer = base + 120 + (i % 2 ? treble * 80 : harmonic * 80);
+        const x1 = centerX + Math.cos(angle) * inner;
+        const y1 = centerY + Math.sin(angle) * inner;
+        const x2 = centerX + Math.cos(angle) * outer;
+        const y2 = centerY + Math.sin(angle) * outer;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.strokeStyle = hexToRgba(colors[(i + 1) % colors.length], 0.35 + transients * 0.3);
+        ctx.lineWidth = 1 + transients * 4;
+        ctx.stroke();
+      }
+
+      const gridSize = Math.min(canvas.width, canvas.height) * 0.42;
+      const step = 28;
+      ctx.save();
+      ctx.translate(centerX, centerY);
+      ctx.rotate(Math.sin(time * 0.0012) * 0.2);
+      for (let x = -gridSize / 2; x <= gridSize / 2; x += step) {
+        const amp = Math.sin((x / step) * 0.8 + time * 0.005) * (4 + bass * 20);
+        ctx.strokeStyle = hexToRgba(colors[2], 0.08 + treble * 0.15);
+        ctx.beginPath();
+        ctx.moveTo(x, -gridSize / 2 + amp);
+        ctx.lineTo(x, gridSize / 2 - amp);
+        ctx.stroke();
+      }
+      for (let y = -gridSize / 2; y <= gridSize / 2; y += step) {
+        const amp = Math.cos((y / step) * 0.8 + time * 0.004) * (4 + bass * 20);
+        ctx.strokeStyle = hexToRgba(colors[1], 0.07 + harmonic * 0.12);
+        ctx.beginPath();
+        ctx.moveTo(-gridSize / 2 + amp, y);
+        ctx.lineTo(gridSize / 2 - amp, y);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      const coreRadius = 40 + bass * 60 + harmonic * 30;
+      const core = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, coreRadius * 2.4);
+      core.addColorStop(0, hexToRgba(colors[0], 0.95));
+      core.addColorStop(0.35, hexToRgba(colors[1], 0.55));
+      core.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, coreRadius, 0, Math.PI * 2);
+      ctx.fillStyle = core;
+      ctx.fill();
+    }
+
+    function drawHud(centerX, centerY, bass, mid, treble, harmonic, vocal, dirt, transients, colors) {
+      const levels = [bass, mid, treble, harmonic, vocal, dirt, transients];
+      const names = ['BASS', 'MID', 'HIGH', 'HARM', 'VOC', 'DIRT', 'TRNS'];
+      const w = 160;
+      const startX = canvas.width - w - 24;
+      const startY = 24;
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      ctx.fillRect(startX - 14, startY - 14, w + 28, 188);
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.strokeRect(startX - 14, startY - 14, w + 28, 188);
+      ctx.font = '12px Inter, Arial';
+
+      for (let i = 0; i < levels.length; i++) {
+        const y = startY + i * 24;
+        ctx.fillStyle = 'rgba(220,230,235,0.9)';
+        ctx.fillText(names[i], startX, y + 10);
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.fillRect(startX + 42, y, 105, 10);
+        ctx.fillStyle = colors[i % colors.length];
+        ctx.fillRect(startX + 42, y, Math.min(105, levels[i] * 110), 10);
+      }
+    }
+
+    populateDevices();
+  </script>
+</body>
+</html>

@@ -66,6 +66,15 @@ export const UI_TEXT: Record<UiLanguage, UiText> = {
     error: "Error",
     generatedTimeline: "Generated timeline",
     generatedResults: "Generated Results",
+    audioVisualizer: "Audio Visualizer",
+    visualizerMode: "Visualizer mode",
+    visualizer2d: "2D Spectrum",
+    visualizer3d: "3D Reactivity",
+    visualizerTrack: "Track source",
+    visualizerNoAudio:
+      "No audio clips available yet. Generate a track with audio first.",
+    visualizerHint:
+      "Tip: press play on the selected clip and switch between 2D and 3D modes.",
     noGenerationsYet: "No generations yet.",
     deleteTrack: "Delete",
     deleteAllTracks: "Delete all",
@@ -140,6 +149,15 @@ export const UI_TEXT: Record<UiLanguage, UiText> = {
     error: "Blad",
     generatedTimeline: "Osi czasu generacji",
     generatedResults: "Wygenerowane wyniki",
+    audioVisualizer: "Wizualizator audio",
+    visualizerMode: "Tryb wizualizacji",
+    visualizer2d: "2D Spektrum",
+    visualizer3d: "3D Reaktywny",
+    visualizerTrack: "Zrodlo utworu",
+    visualizerNoAudio:
+      "Brak klipow audio. Najpierw wygeneruj utwor z dzwiekiem.",
+    visualizerHint:
+      "Wskazowka: uruchom odtwarzanie wybranego klipu i przelaczaj tryb 2D/3D.",
     noGenerationsYet: "Brak wygenerowanych wynikow.",
     deleteTrack: "Usun",
     deleteAllTracks: "Usun wszystko",
