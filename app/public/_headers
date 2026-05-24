@@ -1,0 +1,10 @@
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: same-origin
+
+/hf-v2/*
+  Cross-Origin-Resource-Policy: cross-origin
+
+/hf/*
+  Cross-Origin-Resource-Policy: cross-origin
