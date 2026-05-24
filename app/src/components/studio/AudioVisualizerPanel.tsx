@@ -15,6 +15,14 @@ type InputSource = {
 };
 type Visual2DStyle = "bars" | "mirror" | "radial";
 type VisualPalette = "neon" | "sunset" | "ocean" | "mono";
+type Visual3DShape =
+  | "icosahedron"
+  | "torus-knot"
+  | "octahedron"
+  | "dodecahedron"
+  | "fractal-bloom"
+  | "psychedelic-orbit";
+type Visual3DMaterial = "wireframe" | "solid" | "glass";
 
 const PALETTES: Record<
   VisualPalette,
@@ -58,6 +66,11 @@ export function AudioVisualizerPanel({
   const [pointDensity, setPointDensity] = useState(1200);
   const [motionSpeed, setMotionSpeed] = useState(1);
   const [showWaveform, setShowWaveform] = useState(true);
+  const [shape3d, setShape3d] = useState<Visual3DShape>("icosahedron");
+  const [material3d, setMaterial3d] = useState<Visual3DMaterial>("wireframe");
+  const [fractalDepth, setFractalDepth] = useState(4);
+  const [hueShiftSpeed, setHueShiftSpeed] = useState(1.2);
+  const [psychedelicWarp, setPsychedelicWarp] = useState(0.8);
   const [devices, setDevices] = useState<InputSource[]>([]);
   const [selectedSourceId, setSelectedSourceId] = useState<string>("");
   const [captureError, setCaptureError] = useState<string | null>(null);
@@ -201,9 +214,78 @@ export function AudioVisualizerPanel({
     let renderer: THREE.WebGLRenderer | null = null;
     let scene: THREE.Scene | null = null;
     let camera: THREE.PerspectiveCamera | null = null;
-    let orb: THREE.Mesh | null = null;
-    let ring: THREE.Mesh | null = null;
+    let primaryObject: THREE.Object3D | null = null;
+    let secondaryObject: THREE.Object3D | null = null;
     let points: THREE.Points | null = null;
+    const reactiveMaterials: THREE.MeshStandardMaterial[] = [];
+    const disposableObjects: THREE.Object3D[] = [];
+
+    const createMaterial = (
+      color: string,
+      emissive: string,
+    ): THREE.MeshStandardMaterial => {
+      const material = new THREE.MeshStandardMaterial({
+        color,
+        emissive,
+        metalness: material3d === "solid" ? 0.35 : 0.15,
+        roughness: material3d === "glass" ? 0.08 : 0.28,
+        wireframe: material3d === "wireframe",
+        transparent: material3d === "glass",
+        opacity: material3d === "glass" ? 0.72 : 1,
+      });
+      reactiveMaterials.push(material);
+      return material;
+    };
+
+    const createFractalBloom = (
+      depth: number,
+      colorA: string,
+      colorB: string,
+    ): THREE.Group => {
+      const group = new THREE.Group();
+      const seeds: Array<{
+        position: THREE.Vector3;
+        scale: number;
+        level: number;
+      }> = [{ position: new THREE.Vector3(0, 0, 0), scale: 0.56, level: 0 }];
+      const baseDirections = [
+        new THREE.Vector3(1, 1, 1),
+        new THREE.Vector3(-1, -1, 1),
+        new THREE.Vector3(-1, 1, -1),
+        new THREE.Vector3(1, -1, -1),
+      ].map((vector) => vector.normalize());
+
+      for (let level = 0; level < depth; level += 1) {
+        const snapshot = [...seeds.filter((seed) => seed.level === level)];
+        for (const seed of snapshot) {
+          const mesh = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(seed.scale, 2),
+            createMaterial(level % 2 === 0 ? colorA : colorB, "#1b1734"),
+          );
+          mesh.position.copy(seed.position);
+          mesh.userData = { level };
+          group.add(mesh);
+          disposableObjects.push(mesh);
+
+          if (level === depth - 1) {
+            continue;
+          }
+
+          const offsetBase = 0.8 * seed.scale;
+          for (const direction of baseDirections) {
+            seeds.push({
+              position: seed.position
+                .clone()
+                .add(direction.clone().multiplyScalar(offsetBase)),
+              scale: seed.scale * 0.58,
+              level: level + 1,
+            });
+          }
+        }
+      }
+
+      return group;
+    };
 
     if (host) {
       scene = new THREE.Scene();
@@ -230,28 +312,62 @@ export function AudioVisualizerPanel({
       fillLight.position.set(-2, -1.5, 2.6);
       scene.add(fillLight);
 
-      orb = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(1.05, 5),
-        new THREE.MeshStandardMaterial({
-          color: paletteConfig.accent,
-          emissive: "#112640",
-          metalness: 0.25,
-          roughness: 0.2,
-          wireframe: true,
-        }),
-      );
-      scene.add(orb);
+      if (shape3d === "fractal-bloom") {
+        primaryObject = createFractalBloom(
+          fractalDepth,
+          paletteConfig.accent,
+          palette === "mono" ? "#d1d5db" : "#f45bf5",
+        );
+      } else if (shape3d === "psychedelic-orbit") {
+        const psychedelicGroup = new THREE.Group();
+        const torusA = new THREE.Mesh(
+          new THREE.TorusKnotGeometry(1.06, 0.14, 340, 28),
+          createMaterial(paletteConfig.accent, "#23153f"),
+        );
+        const torusB = new THREE.Mesh(
+          new THREE.TorusKnotGeometry(0.78, 0.1, 260, 20),
+          createMaterial("#ff7be5", "#2f1238"),
+        );
+        const core = new THREE.Mesh(
+          new THREE.SphereGeometry(0.42, 48, 48),
+          createMaterial("#fff1f5", "#4a2947"),
+        );
+        torusA.rotation.x = 0.5;
+        torusB.rotation.y = 0.9;
+        psychedelicGroup.add(torusA, torusB, core);
+        primaryObject = psychedelicGroup;
+        disposableObjects.push(torusA, torusB, core);
+      } else {
+        const geometry: THREE.BufferGeometry =
+          shape3d === "torus-knot"
+            ? new THREE.TorusKnotGeometry(1.1, 0.26, 280, 30)
+            : shape3d === "octahedron"
+              ? new THREE.OctahedronGeometry(1.2, 4)
+              : shape3d === "dodecahedron"
+                ? new THREE.DodecahedronGeometry(1.1, 2)
+                : new THREE.IcosahedronGeometry(1.05, 5);
 
-      ring = new THREE.Mesh(
-        new THREE.TorusKnotGeometry(1.45, 0.09, 260, 22),
-        new THREE.MeshStandardMaterial({
-          color: palette === "mono" ? "#d1d5db" : "#f45bf5",
-          emissive: "#35113f",
-          metalness: 0.2,
-          roughness: 0.35,
-        }),
-      );
-      scene.add(ring);
+        primaryObject = new THREE.Mesh(
+          geometry,
+          createMaterial(paletteConfig.accent, "#112640"),
+        );
+        disposableObjects.push(primaryObject);
+      }
+
+      if (shape3d !== "psychedelic-orbit") {
+        secondaryObject = new THREE.Mesh(
+          new THREE.TorusKnotGeometry(1.45, 0.09, 260, 22),
+          createMaterial(palette === "mono" ? "#d1d5db" : "#f45bf5", "#35113f"),
+        );
+        disposableObjects.push(secondaryObject);
+      }
+
+      if (primaryObject) {
+        scene.add(primaryObject);
+      }
+      if (secondaryObject) {
+        scene.add(secondaryObject);
+      }
 
       const pointCount = pointDensity;
       const positions = new Float32Array(pointCount * 3);
@@ -404,19 +520,57 @@ export function AudioVisualizerPanel({
         renderer &&
         scene &&
         camera &&
-        orb &&
-        ring &&
+        primaryObject &&
         points
       ) {
         const speed = motionSpeed;
+        const now = performance.now() * 0.001;
         const pulse = 1 + clampedBass * 0.75;
-        orb.scale.setScalar(pulse);
-        orb.rotation.x += (0.006 + clampedMids * 0.02) * speed;
-        orb.rotation.y += (0.009 + clampedTreble * 0.03) * speed;
 
-        ring.rotation.x -= (0.004 + clampedTreble * 0.02) * speed;
-        ring.rotation.z += (0.007 + clampedBass * 0.02) * speed;
-        ring.scale.setScalar(1 + clampedMids * 0.3);
+        primaryObject.scale.setScalar(pulse);
+        primaryObject.rotation.x += (0.006 + clampedMids * 0.02) * speed;
+        primaryObject.rotation.y += (0.009 + clampedTreble * 0.03) * speed;
+
+        if (shape3d === "fractal-bloom") {
+          primaryObject.children.forEach((child, index) => {
+            const level = Number(child.userData?.level ?? 0);
+            const levelPulse =
+              1 + Math.sin(now * (1.6 + level * 0.3) + index * 0.1) * 0.08;
+            child.scale.setScalar(levelPulse);
+            child.rotation.x += (0.002 + level * 0.0007) * speed;
+            child.rotation.y -= (0.003 + level * 0.0009) * speed;
+          });
+        }
+
+        if (shape3d === "psychedelic-orbit") {
+          primaryObject.rotation.z += (0.004 + psychedelicWarp * 0.01) * speed;
+          const orbitalWarp =
+            1 + Math.sin(now * (2 + psychedelicWarp * 3.4)) * 0.18;
+          primaryObject.scale.setScalar(pulse * orbitalWarp);
+        }
+
+        if (secondaryObject) {
+          secondaryObject.rotation.x -= (0.004 + clampedTreble * 0.02) * speed;
+          secondaryObject.rotation.z += (0.007 + clampedBass * 0.02) * speed;
+          secondaryObject.scale.setScalar(1 + clampedMids * 0.3);
+        }
+
+        reactiveMaterials.forEach((material, index) => {
+          const hueSeed = (paletteConfig.primaryHue % 360) / 360;
+          const hue =
+            (hueSeed +
+              now * 0.06 * hueShiftSpeed +
+              index * 0.08 +
+              clampedTreble * 0.07) %
+            1;
+          if (palette === "mono") {
+            material.color.setHSL(0, 0, 0.72 + clampedBass * 0.08);
+            material.emissive.setHSL(0, 0, 0.14 + clampedMids * 0.08);
+          } else {
+            material.color.setHSL(hue, 0.88, 0.56 + clampedBass * 0.04);
+            material.emissive.setHSL(hue, 0.75, 0.18 + clampedMids * 0.11);
+          }
+        });
 
         points.rotation.y += (0.002 + clampedTreble * 0.009) * speed;
         points.rotation.x -= (0.001 + clampedBass * 0.006) * speed;
@@ -459,13 +613,17 @@ export function AudioVisualizerPanel({
       if (renderer) {
         renderer.dispose();
       }
-      if (orb) {
-        orb.geometry.dispose();
-        (orb.material as THREE.Material).dispose();
-      }
-      if (ring) {
-        ring.geometry.dispose();
-        (ring.material as THREE.Material).dispose();
+      for (const object of disposableObjects) {
+        const maybeMesh = object as THREE.Mesh;
+        if (maybeMesh.geometry) {
+          maybeMesh.geometry.dispose();
+        }
+        const material = maybeMesh.material;
+        if (Array.isArray(material)) {
+          material.forEach((item) => item.dispose());
+        } else if (material) {
+          material.dispose();
+        }
       }
       if (points) {
         points.geometry.dispose();
@@ -474,11 +632,16 @@ export function AudioVisualizerPanel({
     };
   }, [
     fftSize,
+    fractalDepth,
+    hueShiftSpeed,
     isCapturing,
+    material3d,
     mode,
     motionSpeed,
     palette,
+    psychedelicWarp,
     pointDensity,
+    shape3d,
     sensitivity,
     showWaveform,
     style2d,
@@ -599,6 +762,39 @@ export function AudioVisualizerPanel({
             </label>
 
             <label className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
+              <span>{ui.visualizer3dShape}</span>
+              <select
+                value={shape3d}
+                onChange={(event) =>
+                  setShape3d(event.target.value as Visual3DShape)
+                }
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+              >
+                <option value="icosahedron">Icosahedron</option>
+                <option value="torus-knot">Torus Knot</option>
+                <option value="octahedron">Octahedron</option>
+                <option value="dodecahedron">Dodecahedron</option>
+                <option value="fractal-bloom">Fractal Bloom</option>
+                <option value="psychedelic-orbit">Psychedelic Orbit</option>
+              </select>
+            </label>
+
+            <label className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
+              <span>{ui.visualizer3dMaterial}</span>
+              <select
+                value={material3d}
+                onChange={(event) =>
+                  setMaterial3d(event.target.value as Visual3DMaterial)
+                }
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+              >
+                <option value="wireframe">Wireframe</option>
+                <option value="solid">Solid</option>
+                <option value="glass">Glass</option>
+              </select>
+            </label>
+
+            <label className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
               <span>{ui.visualizerFftSize}</span>
               <select
                 value={fftSize}
@@ -671,6 +867,57 @@ export function AudioVisualizerPanel({
                 step={0.05}
                 value={motionSpeed}
                 onChange={(event) => setMotionSpeed(Number(event.target.value))}
+                className="w-full"
+              />
+            </label>
+
+            <label className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
+              <span>
+                {ui.visualizerFractalDepth}: {fractalDepth}
+              </span>
+              <input
+                type="range"
+                min={2}
+                max={5}
+                step={1}
+                value={fractalDepth}
+                onChange={(event) =>
+                  setFractalDepth(Number(event.target.value))
+                }
+                className="w-full"
+              />
+            </label>
+
+            <label className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
+              <span>
+                {ui.visualizerHueShiftSpeed}: {hueShiftSpeed.toFixed(2)}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={3}
+                step={0.05}
+                value={hueShiftSpeed}
+                onChange={(event) =>
+                  setHueShiftSpeed(Number(event.target.value))
+                }
+                className="w-full"
+              />
+            </label>
+
+            <label className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
+              <span>
+                {ui.visualizerPsychedelicWarp}: {psychedelicWarp.toFixed(2)}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={2}
+                step={0.05}
+                value={psychedelicWarp}
+                onChange={(event) =>
+                  setPsychedelicWarp(Number(event.target.value))
+                }
                 className="w-full"
               />
             </label>

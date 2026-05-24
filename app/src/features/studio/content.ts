@@ -93,6 +93,11 @@ export const UI_TEXT: Record<UiLanguage, UiText> = {
     visualizerPointDensity: "3D particle density",
     visualizerMotionSpeed: "Motion speed",
     visualizerShowWaveform: "Show waveform line",
+    visualizer3dShape: "3D shape",
+    visualizer3dMaterial: "3D material",
+    visualizerFractalDepth: "Fractal depth",
+    visualizerHueShiftSpeed: "Hue shift speed",
+    visualizerPsychedelicWarp: "Psychedelic warp",
     visualizerHint:
       "Tip: when someone plays live, choose that input and watch 2D/3D react instantly.",
     noGenerationsYet: "No generations yet.",
@@ -196,6 +201,11 @@ export const UI_TEXT: Record<UiLanguage, UiText> = {
     visualizerPointDensity: "Gestosc czastek 3D",
     visualizerMotionSpeed: "Predkosc ruchu",
     visualizerShowWaveform: "Pokaz linie waveform",
+    visualizer3dShape: "Bryla 3D",
+    visualizer3dMaterial: "Material 3D",
+    visualizerFractalDepth: "Glebia fraktala",
+    visualizerHueShiftSpeed: "Predkosc zmiany barw",
+    visualizerPsychedelicWarp: "Psychedeliczne odksztalcenie",
     visualizerHint:
       "Wskazowka: gdy ktos gra na zywo, wybierz to wejscie i obserwuj reakcje 2D/3D.",
     noGenerationsYet: "Brak wygenerowanych wynikow.",

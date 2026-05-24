@@ -88,6 +88,11 @@ export interface UiText {
   visualizerPointDensity: string;
   visualizerMotionSpeed: string;
   visualizerShowWaveform: string;
+  visualizer3dShape: string;
+  visualizer3dMaterial: string;
+  visualizerFractalDepth: string;
+  visualizerHueShiftSpeed: string;
+  visualizerPsychedelicWarp: string;
   visualizerNoAudio: string;
   visualizerHint: string;
   noGenerationsYet: string;
