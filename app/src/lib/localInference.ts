@@ -245,6 +245,8 @@ function isRetriableModelLoadError(error: unknown): boolean {
     message.includes("failed to fetch") ||
     message.includes("tokenizer_class") ||
     message.includes("cannot read properties of undefined") ||
+    message.includes("unsupported model type") ||
+    message.includes("none of the candidate model classes") ||
     message.includes("timed out")
   );
 }
