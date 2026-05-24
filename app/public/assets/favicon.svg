@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="IKI Music icon">
+	<defs>
+		<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+			<stop offset="0" stop-color="#06b6d4" />
+			<stop offset="0.55" stop-color="#6366f1" />
+			<stop offset="1" stop-color="#ec4899" />
+		</linearGradient>
+	</defs>
+	<rect x="4" y="4" width="56" height="56" rx="16" fill="url(#bg)" />
+	<circle cx="24" cy="42" r="6" fill="#f8fafc" />
+	<path d="M30 41V21l18-4v20" stroke="#f8fafc" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+	<circle cx="48" cy="39" r="6" fill="#f8fafc" />
+	<rect x="14" y="16" width="3" height="10" rx="1.5" fill="#fde68a" opacity="0.9" />
+	<rect x="19" y="12" width="3" height="14" rx="1.5" fill="#fde68a" opacity="0.9" />
+	<rect x="24" y="18" width="3" height="8" rx="1.5" fill="#fde68a" opacity="0.9" />
+</svg>

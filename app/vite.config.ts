@@ -185,6 +185,24 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    proxy: {
+      "/hf-v2": {
+        target: "https://huggingface.co",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/hf-v2/, ""),
+      },
+      "/hf": {
+        target: "https://huggingface.co",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/hf/, ""),
+      },
+      "/api": {
+        target: "https://huggingface.co",
+        changeOrigin: true,
+      },
+    },
+  },
   test: {
     globals: true,
     environment: "jsdom",
