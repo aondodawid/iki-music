@@ -65,6 +65,7 @@ let cachedMusicGen: CachedMusicGen | null = null;
 let cachedModelName: string | null = null;
 let cachedTransformersModulePromise: Promise<TransformersModule> | null = null;
 let transformersFetchPatched = false;
+let forceSimulationMode = false;
 
 async function getTransformersModule(): Promise<TransformersModule> {
   if (!cachedTransformersModulePromise) {
@@ -340,7 +341,20 @@ export async function preloadMusicGenModel(): Promise<void> {
     `MusicGen model estimate: ~${ESTIMATED_MUSICGEN_MODEL_MIB} MiB for ${config.transformersModel}.`,
   );
 
-  await getMusicGenWithFallback(config.transformersModel);
+  try {
+    await getMusicGenWithFallback(config.transformersModel);
+    forceSimulationMode = false;
+  } catch (error) {
+    if (!isRetriableModelLoadError(error)) {
+      throw error;
+    }
+
+    forceSimulationMode = true;
+    console.warn(
+      "MusicGen model artifacts are unavailable through the current proxy. Falling back to simulation mode.",
+      error,
+    );
+  }
 }
 
 export function setMusicGenProgressReporter(
@@ -362,7 +376,7 @@ export async function generateWithTransformers(
     qualityPreset,
   );
 
-  if (config.useSimulation) {
+  if (config.useSimulation || forceSimulationMode) {
     return {
       text: `Local simulated MusicGen output for: ${input.prompt} (${durationSeconds}s)`,
     };
