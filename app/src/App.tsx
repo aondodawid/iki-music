@@ -5,8 +5,12 @@ import { isFeatureEnabled, setFeatureFlag } from "./lib/featureFlags";
 import { GenerationOrchestrator } from "./lib/orchestrator";
 import type { GenerationResult, MusicGenQualityPreset } from "./lib/types";
 import {
+  clearInactiveModelCache,
+  getModelDurationLimit,
   preloadMusicGenModel,
+  setSelectedLocalModel,
   setMusicGenProgressReporter,
+  SUPPORTED_LOCAL_MODELS,
 } from "./lib/localInference";
 import {
   clearPersistedTimeline,
@@ -30,6 +34,8 @@ import {
   CHAT_DURATION_OVERRIDE_STORAGE_KEY,
   HARD_MAX_CHAT_DURATION_SECONDS,
   LANGUAGE_STORAGE_KEY,
+  LOCAL_CACHED_MODEL_STORAGE_KEY,
+  LOCAL_MODEL_STORAGE_KEY,
   MUSICGEN_QUALITY_STORAGE_KEY,
   THEME_STORAGE_KEY,
 } from "@/features/studio/constants";
@@ -42,6 +48,7 @@ import {
   detectSmartChatDurationCap,
   readStoredChatDurationOverride,
   readStoredLanguage,
+  readStoredLocalModel,
   readStoredMusicGenQualityPreset,
   readStoredTheme,
 } from "@/features/studio/storage";
@@ -96,6 +103,14 @@ function App() {
     "tokenizer" | "model" | "ready"
   >("tokenizer");
   const [modelLoadError, setModelLoadError] = useState<string | null>(null);
+  const [selectedModelId, setSelectedModelId] = useState<string>(() => {
+    const storedModel = readStoredLocalModel();
+    return (
+      SUPPORTED_LOCAL_MODELS.find((model) => model.id === storedModel)?.id ??
+      SUPPORTED_LOCAL_MODELS[0].id
+    );
+  });
+  const [modelCacheHint, setModelCacheHint] = useState<string | null>(null);
   const [mode, setMode] = useState<"live-jam" | "chat-generate">("live-jam");
   const [liveNotes, setLiveNotes] = useState("C G Am F");
   const [liveDurationSeconds, setLiveDurationSeconds] = useState(6);
@@ -140,6 +155,10 @@ function App() {
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const ui = UI_TEXT[language];
+  const selectedModel =
+    SUPPORTED_LOCAL_MODELS.find((model) => model.id === selectedModelId) ??
+    SUPPORTED_LOCAL_MODELS[0];
+  const selectedModelDurationLimit = getModelDurationLimit(selectedModel.id);
 
   const isLiveEnabled = isFeatureEnabled("ai-jam-accompaniment");
   const isChatEnabled = isFeatureEnabled("chat-prompt-music-generation");
@@ -178,7 +197,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
     const unsubscribe = orchestrator.subscribe((nextState) => {
       setState(nextState);
       if (nextState.result) {
@@ -193,12 +211,34 @@ function App() {
       }
     });
 
+    return () => {
+      unsubscribe();
+    };
+  }, [orchestrator]);
+
+  useEffect(() => {
+    let cancelled = false;
+
     if (import.meta.env.MODE === "test") {
       return () => {
         cancelled = true;
-        unsubscribe();
       };
     }
+
+    setSelectedLocalModel(selectedModel.id);
+    setModelLoadStatus("loading");
+    setModelLoadProgress(0);
+    setModelLoadStage("tokenizer");
+    setModelLoadError(null);
+
+    const cachedModelId = window.localStorage.getItem(
+      LOCAL_CACHED_MODEL_STORAGE_KEY,
+    );
+    setModelCacheHint(
+      cachedModelId === selectedModel.id
+        ? ui.modelCacheReady
+        : ui.modelCacheCold,
+    );
 
     setMusicGenProgressReporter(({ progress, stage }) => {
       if (cancelled) {
@@ -210,9 +250,17 @@ function App() {
       setModelLoadProgress(percent);
     });
 
-    void preloadMusicGenModel()
+    void clearInactiveModelCache(selectedModel.id)
+      .catch(() => {
+        // Keep preload flow resilient even if explicit cache pruning fails.
+      })
+      .then(() => preloadMusicGenModel(selectedModel.id))
       .then(() => {
         if (!cancelled) {
+          window.localStorage.setItem(
+            LOCAL_CACHED_MODEL_STORAGE_KEY,
+            selectedModel.id,
+          );
           setModelLoadProgress(100);
           setModelLoadStage("ready");
           setModelLoadStatus("ready");
@@ -230,9 +278,13 @@ function App() {
     return () => {
       cancelled = true;
       setMusicGenProgressReporter(null);
-      unsubscribe();
     };
-  }, [orchestrator, ui.modelLoadFailed]);
+  }, [
+    selectedModel.id,
+    ui.modelCacheCold,
+    ui.modelCacheReady,
+    ui.modelLoadFailed,
+  ]);
 
   useEffect(() => {
     return scheduleIdleWrite(() => {
@@ -242,6 +294,12 @@ function App() {
       );
     });
   }, [musicGenQualityPreset]);
+
+  useEffect(() => {
+    return scheduleIdleWrite(() => {
+      window.localStorage.setItem(LOCAL_MODEL_STORAGE_KEY, selectedModel.id);
+    });
+  }, [selectedModel.id]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -315,9 +373,20 @@ function App() {
         : mode;
 
   const statusLabel = statusToText(state.status, language);
-  const effectiveChatDurationMax = chatDurationOverride
-    ? HARD_MAX_CHAT_DURATION_SECONDS
-    : smartChatDurationCap;
+  const effectiveChatDurationMax = Math.min(
+    chatDurationOverride
+      ? HARD_MAX_CHAT_DURATION_SECONDS
+      : smartChatDurationCap,
+    selectedModelDurationLimit,
+  );
+
+  useEffect(() => {
+    setChatDurationSeconds((currentSeconds) =>
+      currentSeconds > effectiveChatDurationMax
+        ? effectiveChatDurationMax
+        : currentSeconds,
+    );
+  }, [effectiveChatDurationMax]);
 
   useEffect(() => {
     return scheduleIdleWrite(() => {
@@ -476,7 +545,9 @@ function App() {
           throw new Error("Invalid import payload version.");
         }
 
-        const validEntries = parsed.entries.filter(isValidExportedTimelineEntry);
+        const validEntries = parsed.entries.filter(
+          isValidExportedTimelineEntry,
+        );
         if (validEntries.length !== parsed.entries.length) {
           throw new Error("Import payload contains invalid timeline entries.");
         }
@@ -564,6 +635,7 @@ function App() {
         onToggleTheme={handleToggleTheme}
         onInstallApp={handleInstallAppClick}
         onToggleLanguage={handleToggleLanguage}
+        modelLabel={selectedModel.label}
         modelLoadProgress={modelLoadProgress}
         modelLoadStage={modelLoadStage}
       />
@@ -617,6 +689,35 @@ function App() {
         effectiveMode={effectiveMode}
         onSetMode={setMode}
       />
+
+      <section className="space-y-2 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm backdrop-blur sm:p-5 dark:border-slate-700/70 dark:bg-slate-900/80">
+        <label htmlFor="musicgen-model" className="text-sm font-medium">
+          {ui.modelSelector}
+        </label>
+        <select
+          id="musicgen-model"
+          value={selectedModel.id}
+          onChange={(event) => {
+            const nextModel =
+              SUPPORTED_LOCAL_MODELS.find(
+                (model) => model.id === event.target.value,
+              ) ?? SUPPORTED_LOCAL_MODELS[0];
+            setSelectedModelId(nextModel.id);
+          }}
+          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+        >
+          {SUPPORTED_LOCAL_MODELS.map((model) => (
+            <option key={model.id} value={model.id}>
+              {model.label}
+            </option>
+          ))}
+        </select>
+        {modelCacheHint && (
+          <p className="text-xs text-slate-600 dark:text-slate-300">
+            {modelCacheHint}
+          </p>
+        )}
+      </section>
 
       <QualityPresetPanel
         ui={ui}

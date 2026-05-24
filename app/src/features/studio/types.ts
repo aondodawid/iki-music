@@ -26,6 +26,9 @@ export interface UiText {
   fallbackActive: string;
   reEnableAiModes: string;
   generationMode: string;
+  modelSelector: string;
+  modelCacheReady: string;
+  modelCacheCold: string;
   liveJam: string;
   chatGenerate: string;
   speedQualityPreset: string;

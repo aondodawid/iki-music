@@ -20,8 +20,9 @@ function Controls({
   onToggleLanguage,
 }: Omit<BaseViewProps, "installHint">) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
       <Button
+        className="h-9 px-3 text-xs sm:text-sm"
         variant="outline"
         onClick={onToggleTheme}
         aria-pressed={themeMode === "dark"}
@@ -30,6 +31,7 @@ function Controls({
         {themeMode === "dark" ? ui.lightMode : ui.darkMode}
       </Button>
       <Button
+        className="h-9 px-3 text-xs sm:text-sm"
         variant="outline"
         onClick={onInstallApp}
         tabIndex={installPromptAvailable ? 0 : -1}
@@ -37,6 +39,7 @@ function Controls({
         {ui.installApp}
       </Button>
       <Button
+        className="h-9 px-3 text-xs sm:text-sm"
         variant="outline"
         onClick={onToggleLanguage}
         aria-label="Switch language"
@@ -48,6 +51,7 @@ function Controls({
 }
 
 interface LoadingViewProps extends BaseViewProps {
+  modelLabel: string;
   modelLoadProgress: number;
   modelLoadStage: "tokenizer" | "model" | "ready";
 }
@@ -60,6 +64,7 @@ export function LoadingView({
   onToggleTheme,
   onInstallApp,
   onToggleLanguage,
+  modelLabel,
   modelLoadProgress,
   modelLoadStage,
 }: LoadingViewProps) {
@@ -73,8 +78,8 @@ export function LoadingView({
   return (
     <main className="mx-auto w-full max-w-3xl px-4 pb-12 pt-6 text-slate-900 sm:px-6 dark:text-slate-100">
       <div className="space-y-4 rounded-2xl border border-slate-200/70 bg-white/85 p-5 shadow-lg backdrop-blur sm:p-6 dark:border-slate-700/70 dark:bg-slate-900/85">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             {ui.appTitle}
           </h1>
           <Controls
@@ -92,7 +97,7 @@ export function LoadingView({
           </p>
         )}
         <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-          {progressLabel}... {modelLoadProgress}%
+          {progressLabel} ({modelLabel})... {modelLoadProgress}%
         </p>
         <div
           className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700"
@@ -129,8 +134,8 @@ export function FailedView({
   return (
     <main className="mx-auto w-full max-w-3xl px-4 pb-12 pt-6 text-slate-900 sm:px-6 dark:text-slate-100">
       <div className="space-y-4 rounded-2xl border border-red-200 bg-white/90 p-5 shadow-lg sm:p-6 dark:border-red-400/70 dark:bg-slate-900/85">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             {ui.appTitle}
           </h1>
           <Controls

@@ -3,6 +3,7 @@ import {
   CHAT_DURATION_OVERRIDE_STORAGE_KEY,
   HARD_MAX_CHAT_DURATION_SECONDS,
   LANGUAGE_STORAGE_KEY,
+  LOCAL_MODEL_STORAGE_KEY,
   MUSICGEN_QUALITY_STORAGE_KEY,
   THEME_STORAGE_KEY,
 } from "./constants";
@@ -65,6 +66,17 @@ export function readStoredChatDurationOverride(): boolean {
   return (
     window.localStorage.getItem(CHAT_DURATION_OVERRIDE_STORAGE_KEY) === "1"
   );
+}
+
+export function readStoredLocalModel(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const storedModel = window.localStorage.getItem(LOCAL_MODEL_STORAGE_KEY);
+  return typeof storedModel === "string" && storedModel.length > 0
+    ? storedModel
+    : null;
 }
 
 export function detectSmartChatDurationCap(): number {

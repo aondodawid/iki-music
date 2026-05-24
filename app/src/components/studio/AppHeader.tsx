@@ -22,7 +22,7 @@ export function AppHeader({
 }: AppHeaderProps) {
   return (
     <header className="space-y-3 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm backdrop-blur sm:p-5 dark:border-slate-700/70 dark:bg-slate-900/80">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 dark:text-slate-300">
             {ui.localPlayground}
@@ -34,8 +34,9 @@ export function AppHeader({
             {ui.appSubtitle}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-start gap-2 sm:w-auto sm:justify-end">
           <Button
+            className="h-9 px-3 text-xs sm:text-sm"
             variant="outline"
             onClick={onToggleTheme}
             aria-pressed={themeMode === "dark"}
@@ -46,6 +47,7 @@ export function AppHeader({
             {themeMode === "dark" ? ui.lightMode : ui.darkMode}
           </Button>
           <Button
+            className="h-9 px-3 text-xs sm:text-sm"
             variant="outline"
             onClick={onInstallApp}
             tabIndex={installPromptAvailable ? 0 : -1}
@@ -53,6 +55,7 @@ export function AppHeader({
             {ui.installApp}
           </Button>
           <Button
+            className="h-9 px-3 text-xs sm:text-sm"
             variant="outline"
             onClick={onToggleLanguage}
             aria-label="Switch language"

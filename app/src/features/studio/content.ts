@@ -27,6 +27,10 @@ export const UI_TEXT: Record<UiLanguage, UiText> = {
       "AI generation modes are currently disabled. Fallback mode is active.",
     reEnableAiModes: "Re-enable AI modes",
     generationMode: "Generation mode",
+    modelSelector: "Local generation model",
+    modelCacheReady: "Model files detected in cache for this profile.",
+    modelCacheCold:
+      "Model files are not cached yet. They will be downloaded now.",
     liveJam: "Live Jam",
     chatGenerate: "Chat Generate",
     speedQualityPreset: "Speed / quality preset",
@@ -96,6 +100,10 @@ export const UI_TEXT: Record<UiLanguage, UiText> = {
       "Tryby generowania AI sa obecnie wylaczone. Aktywny jest tryb awaryjny.",
     reEnableAiModes: "Wlacz ponownie tryby AI",
     generationMode: "Tryb generowania",
+    modelSelector: "Model lokalnej generacji",
+    modelCacheReady: "Pliki modelu sa juz w cache dla tego profilu.",
+    modelCacheCold:
+      "Pliki modelu nie sa jeszcze w cache. Zostana pobrane teraz.",
     liveJam: "Live Jam",
     chatGenerate: "Generowanie z czatu",
     speedQualityPreset: "Preset szybkosci / jakosci",

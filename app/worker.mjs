@@ -1,8 +1,16 @@
 const HF_PREFIXES = ["/hf-v2/", "/hf/"];
 const HF_HOST = "https://huggingface.co";
 
-function withCorsPreflightHeaders(responseHeaders) {
+function withIsolationHeaders(responseHeaders) {
   const headers = new Headers(responseHeaders);
+  headers.set("Cross-Origin-Opener-Policy", "same-origin");
+  headers.set("Cross-Origin-Embedder-Policy", "require-corp");
+  headers.set("Cross-Origin-Resource-Policy", "same-origin");
+  return headers;
+}
+
+function withCorsPreflightHeaders(responseHeaders) {
+  const headers = withIsolationHeaders(responseHeaders);
   headers.set("Access-Control-Allow-Origin", "*");
   headers.set("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS");
   headers.set("Access-Control-Allow-Headers", "*");
@@ -59,6 +67,7 @@ async function proxyHuggingFaceRequest(request, prefix) {
 
   const upstream = await fetch(upstreamRequest);
   const headers = withCorsPreflightHeaders(upstream.headers);
+  headers.set("Cross-Origin-Resource-Policy", "cross-origin");
   // Revalidate frequently to avoid stale edge/browser 404s on model artifacts.
   headers.set("Cache-Control", "public, max-age=0, must-revalidate");
 
@@ -78,6 +87,11 @@ export default {
       return proxyHuggingFaceRequest(request, hfPrefix);
     }
 
-    return env.ASSETS.fetch(request);
+    const assetResponse = await env.ASSETS.fetch(request);
+    return new Response(assetResponse.body, {
+      status: assetResponse.status,
+      statusText: assetResponse.statusText,
+      headers: withIsolationHeaders(assetResponse.headers),
+    });
   },
 };
