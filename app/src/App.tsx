@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { buildChatPromptRequest, buildLiveJamRequest } from "./lib/adapters";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,12 @@ import {
   preloadMusicGenModel,
   setMusicGenProgressReporter,
 } from "./lib/localInference";
+import {
+  clearPersistedTimeline,
+  deletePersistedTimelineEntry,
+  loadPersistedTimeline,
+  persistTimelineEntry,
+} from "./lib/timelineStorage";
 
 type ModelLoadStatus = "loading" | "ready" | "failed";
 type ThemeMode = "light" | "dark";
@@ -19,7 +25,7 @@ const MUSICGEN_QUALITY_STORAGE_KEY = "iki-music/musicgen-quality-preset";
 const THEME_STORAGE_KEY = "iki-music/theme";
 const LANGUAGE_STORAGE_KEY = "iki-music/language";
 const CHAT_DURATION_OVERRIDE_STORAGE_KEY = "iki-music/chat-duration-override";
-const HARD_MAX_CHAT_DURATION_SECONDS = 120;
+const HARD_MAX_CHAT_DURATION_SECONDS = 30;
 
 interface UiText {
   appTitle: string;
@@ -76,6 +82,8 @@ interface UiText {
   generatedTimeline: string;
   generatedResults: string;
   noGenerationsYet: string;
+  deleteTrack: string;
+  deleteAllTracks: string;
   browserNoAudio: string;
   pausePreview: string;
   playPreview: string;
@@ -123,10 +131,10 @@ const UI_TEXT: Record<UiLanguage, UiText> = {
     generatedClipDuration: (seconds) => `Generated clip duration: ${seconds}s`,
     chatDurationAria: "Chat generated duration (seconds)",
     chatDurationHint:
-      "Long clips may take several minutes and can fail on weaker devices.",
+      "MusicGen is limited to 30 seconds. Longer clips are clamped and may be slower on weaker devices.",
     chatSmartCapInfo: (cap) =>
-      `Smart cap detected for this device: ${cap}s. You can still unlock 120s manually.`,
-    unlockExtendedDuration: "Unlock 120s",
+      `Smart cap detected for this device: ${cap}s. You can still unlock 30s manually.`,
+    unlockExtendedDuration: "Unlock 30s",
     restoreSmartCap: "Use smart cap",
     targetBpm: "Target BPM (optional, 60-200)",
     chatOptions: "Chat generation options",
@@ -141,6 +149,8 @@ const UI_TEXT: Record<UiLanguage, UiText> = {
     generatedTimeline: "Generated timeline",
     generatedResults: "Generated Results",
     noGenerationsYet: "No generations yet.",
+    deleteTrack: "Delete",
+    deleteAllTracks: "Delete all",
     browserNoAudio: "Your browser does not support audio playback.",
     pausePreview: "Pause preview",
     playPreview: "Play preview",
@@ -187,10 +197,10 @@ const UI_TEXT: Record<UiLanguage, UiText> = {
       `Dlugosc generowanego klipu: ${seconds}s`,
     chatDurationAria: "Dlugosc utworu z czatu (sekundy)",
     chatDurationHint:
-      "Dluzsze klipy moga generowac sie kilka minut i moga nie dzialac stabilnie na slabszych urzadzeniach.",
+      "MusicGen ma limit 30 sekund. Dluzsze klipy sa przycinane i moga dzialac wolniej na slabszych urzadzeniach.",
     chatSmartCapInfo: (cap) =>
-      `Wykryto smart cap dla tego urzadzenia: ${cap}s. Nadal mozesz recznie odblokowac 120s.`,
-    unlockExtendedDuration: "Odblokuj 120s",
+      `Wykryto smart cap dla tego urzadzenia: ${cap}s. Nadal mozesz recznie odblokowac 30s.`,
+    unlockExtendedDuration: "Odblokuj 30s",
     restoreSmartCap: "Uzyj smart cap",
     targetBpm: "Docelowe BPM (opcjonalnie, 60-200)",
     chatOptions: "Opcje generowania czatu",
@@ -205,6 +215,8 @@ const UI_TEXT: Record<UiLanguage, UiText> = {
     generatedTimeline: "Osi czasu generacji",
     generatedResults: "Wygenerowane wyniki",
     noGenerationsYet: "Brak wygenerowanych wynikow.",
+    deleteTrack: "Usun",
+    deleteAllTracks: "Usun wszystko",
     browserNoAudio: "Twoja przegladarka nie obsluguje odtwarzania audio.",
     pausePreview: "Wstrzymaj podglad",
     playPreview: "Odtworz podglad",
@@ -222,14 +234,14 @@ const MUSICGEN_QUALITY_PRESET_INFO: Record<
   >
 > = {
   en: {
-    fast: { label: "Fast draft", tokensPerSecond: 4, guidanceScale: 2.5 },
-    balanced: { label: "Balanced", tokensPerSecond: 6, guidanceScale: 3 },
-    quality: { label: "Better quality", tokensPerSecond: 8, guidanceScale: 4 },
+    fast: { label: "Fast draft", tokensPerSecond: 50, guidanceScale: 2.5 },
+    balanced: { label: "Balanced", tokensPerSecond: 50, guidanceScale: 3 },
+    quality: { label: "Better quality", tokensPerSecond: 50, guidanceScale: 4 },
   },
   pl: {
-    fast: { label: "Szybki szkic", tokensPerSecond: 4, guidanceScale: 2.5 },
-    balanced: { label: "Balans", tokensPerSecond: 6, guidanceScale: 3 },
-    quality: { label: "Lepsza jakosc", tokensPerSecond: 8, guidanceScale: 4 },
+    fast: { label: "Szybki szkic", tokensPerSecond: 50, guidanceScale: 2.5 },
+    balanced: { label: "Balans", tokensPerSecond: 50, guidanceScale: 3 },
+    quality: { label: "Lepsza jakosc", tokensPerSecond: 50, guidanceScale: 4 },
   },
 };
 
@@ -307,11 +319,11 @@ function detectSmartChatDurationCap(): number {
   );
 
   if (isMobile || memory <= 4 || cores <= 4) {
-    return 30;
+    return 10;
   }
 
   if (memory <= 8 || cores <= 8) {
-    return 60;
+    return 20;
   }
 
   return HARD_MAX_CHAT_DURATION_SECONDS;
@@ -394,6 +406,7 @@ function App() {
   const [language, setLanguage] = useState<UiLanguage>(() =>
     import.meta.env.MODE === "test" ? "en" : readStoredLanguage(),
   );
+  const timelineRef = useRef<GenerationResult[]>([]);
 
   const ui = UI_TEXT[language];
 
@@ -401,11 +414,51 @@ function App() {
   const isChatEnabled = isFeatureEnabled("chat-prompt-music-generation");
 
   useEffect(() => {
+    timelineRef.current = timeline;
+  }, [timeline]);
+
+  useEffect(() => {
+    let active = true;
+
+    if (import.meta.env.MODE === "test") {
+      return () => {
+        active = false;
+      };
+    }
+
+    void loadPersistedTimeline()
+      .then((entries) => {
+        if (active && entries.length > 0) {
+          setTimeline(entries);
+        }
+      })
+      .catch(() => {
+        // Ignore storage errors and keep in-memory timeline only.
+      });
+
+    return () => {
+      active = false;
+      timelineRef.current.forEach((entry) => {
+        if (entry.audio?.url?.startsWith("blob:")) {
+          URL.revokeObjectURL(entry.audio.url);
+        }
+      });
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     const unsubscribe = orchestrator.subscribe((nextState) => {
       setState(nextState);
       if (nextState.result) {
-        setTimeline((previous) => [nextState.result!, ...previous]);
+        const result = nextState.result;
+        setTimeline((previous) => [result, ...previous]);
+
+        if (import.meta.env.MODE !== "test") {
+          void persistTimelineEntry(result).catch(() => {
+            // Keep UI responsive even when persistence fails.
+          });
+        }
       }
     });
 
@@ -589,6 +642,38 @@ function App() {
           ? localizeErrorMessage(error.message, language)
           : ui.invalidPrompt,
       );
+    }
+  }
+
+  async function handleDeleteEntry(entry: GenerationResult) {
+    if (entry.audio?.url?.startsWith("blob:")) {
+      URL.revokeObjectURL(entry.audio.url);
+    }
+
+    setPlayingId((current) => (current === entry.id ? null : current));
+    setTimeline((previous) => previous.filter((item) => item.id !== entry.id));
+
+    if (import.meta.env.MODE !== "test") {
+      await deletePersistedTimelineEntry(entry.id).catch(() => {
+        // Keep UI consistent even when persistence delete fails.
+      });
+    }
+  }
+
+  async function handleDeleteAllEntries() {
+    timelineRef.current.forEach((entry) => {
+      if (entry.audio?.url?.startsWith("blob:")) {
+        URL.revokeObjectURL(entry.audio.url);
+      }
+    });
+
+    setPlayingId(null);
+    setTimeline([]);
+
+    if (import.meta.env.MODE !== "test") {
+      await clearPersistedTimeline().catch(() => {
+        // Keep UI consistent even when persistence clear fails.
+      });
     }
   }
 
@@ -1060,7 +1145,19 @@ function App() {
         className="rounded-2xl border border-slate-200/70 bg-white/90 p-4 shadow-md dark:border-slate-700/70 dark:bg-slate-900/85"
         aria-label={ui.generatedTimeline}
       >
-        <h2 className="text-lg font-medium">{ui.generatedResults}</h2>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-medium">{ui.generatedResults}</h2>
+          {timeline.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDeleteAllEntries}
+              aria-label={ui.deleteAllTracks}
+            >
+              {ui.deleteAllTracks}
+            </Button>
+          )}
+        </div>
         {timeline.length === 0 && <p>{ui.noGenerationsYet}</p>}
         <ul className="mt-2 space-y-2">
           {timeline.map((entry) => (
@@ -1068,7 +1165,20 @@ function App() {
               key={entry.id}
               className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/60"
             >
-              <p className="text-sm">{entry.content}</p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <p className="text-sm">{entry.content}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  onClick={() => {
+                    void handleDeleteEntry(entry);
+                  }}
+                  aria-label={ui.deleteTrack}
+                >
+                  {ui.deleteTrack}
+                </Button>
+              </div>
               {entry.audio ? (
                 <audio controls className="mt-2 w-full" src={entry.audio.url}>
                   {ui.browserNoAudio}

@@ -5,7 +5,7 @@ import type {
 } from "./types";
 
 const MIN_DURATION_SECONDS = 2;
-const MAX_DURATION_SECONDS = 120;
+const MAX_DURATION_SECONDS = 30;
 const DEFAULT_DURATION_SECONDS = 6;
 const MIN_BPM = 60;
 const MAX_BPM = 200;

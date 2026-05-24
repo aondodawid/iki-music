@@ -14,7 +14,7 @@ describe("adapters", () => {
     });
 
     expect(low.durationSeconds).toBe(2);
-    expect(high.durationSeconds).toBe(120);
+    expect(high.durationSeconds).toBe(30);
   });
 
   it("uses default duration when missing", () => {
@@ -43,7 +43,7 @@ describe("adapters", () => {
 
     expect(low.durationSeconds).toBe(2);
     expect(low.bpm).toBe(60);
-    expect(high.durationSeconds).toBe(120);
+    expect(high.durationSeconds).toBe(30);
     expect(high.bpm).toBe(200);
   });
 

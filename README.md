@@ -136,3 +136,11 @@ npm run build
 - `app/` - aplikacja React (tu uruchamiasz `npm run dev`)
 - `openspec/` - specyfikacje zmian i workflow
 - `.github/skills/` - skille używane przez agenta/Copilota
+
+## 9) Chrome DevTools MCP (Copilot + Claude)
+
+Gotowe ustawienia i instrukcję użycia znajdziesz tutaj:
+
+- `./.vscode/mcp.json` - konfiguracja dla Copilot w VS Code
+- `./.claude/mcp.json` - konfiguracja dla Claude
+- `./CHROME_DEVTOOLS_MCP.md` - jak korzystać krok po kroku

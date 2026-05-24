@@ -44,13 +44,17 @@ const ESTIMATED_MUSICGEN_MODEL_MIB = (
 
 const WAV_MIME_TYPE = "audio/wav";
 const MIN_DURATION_SECONDS = 2;
-const MAX_DURATION_SECONDS = 120;
+const MAX_DURATION_SECONDS = 30;
 const DEFAULT_DURATION_SECONDS = 6;
-const MUSICGEN_TOKENS_PER_SECOND: Record<MusicGenQualityPreset, number> = {
-  fast: 4,
-  balanced: 6,
-  quality: 8,
-};
+const MUSICGEN_MAX_NEW_TOKENS = 1503;
+const MUSICGEN_TOKENS_PER_SECOND =
+  MUSICGEN_MAX_NEW_TOKENS / MAX_DURATION_SECONDS;
+const MUSICGEN_QUALITY_TOKEN_MULTIPLIER: Record<MusicGenQualityPreset, number> =
+  {
+    fast: 1,
+    balanced: 1,
+    quality: 1,
+  };
 const MUSICGEN_GUIDANCE_SCALE: Record<MusicGenQualityPreset, number> = {
   fast: 2.5,
   balanced: 3,
@@ -75,10 +79,13 @@ function estimateMusicGenTokensForPreset(
   durationSeconds: number,
   qualityPreset: MusicGenQualityPreset,
 ): number {
-  return Math.max(
-    1,
-    Math.floor(durationSeconds * MUSICGEN_TOKENS_PER_SECOND[qualityPreset]),
+  const estimatedTokens = Math.ceil(
+    durationSeconds *
+      MUSICGEN_TOKENS_PER_SECOND *
+      MUSICGEN_QUALITY_TOKEN_MULTIPLIER[qualityPreset],
   );
+
+  return Math.max(1, Math.min(MUSICGEN_MAX_NEW_TOKENS, estimatedTokens));
 }
 
 async function getMusicGen(modelName: string): Promise<CachedMusicGen> {
