@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { buildChatPromptRequest, buildLiveJamRequest } from "./lib/adapters";
+import { Button } from "@/components/ui/button";
 import { isFeatureEnabled, setFeatureFlag } from "./lib/featureFlags";
 import { GenerationOrchestrator } from "./lib/orchestrator";
 import type { GenerationResult, MusicGenQualityPreset } from "./lib/types";
@@ -152,6 +153,9 @@ function App() {
     import.meta.env.MODE === "test" ? "en" : readStoredLanguage(),
   );
   const [timelineNotice, setTimelineNotice] = useState<string | null>(null);
+  const [studioTab, setStudioTab] = useState<"create" | "visualizer">(
+    "create",
+  );
   const timelineRef = useRef<GenerationResult[]>([]);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -683,122 +687,143 @@ function App() {
         onToggleLanguage={handleToggleLanguage}
       />
 
-      <GenerationModeSwitch
-        ui={ui}
-        isLiveEnabled={isLiveEnabled}
-        isChatEnabled={isChatEnabled}
-        effectiveMode={effectiveMode}
-        onSetMode={setMode}
-      />
-
-      <section className="space-y-2 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm backdrop-blur sm:p-5 dark:border-slate-700/70 dark:bg-slate-900/80">
-        <label htmlFor="musicgen-model" className="text-sm font-medium">
-          {ui.modelSelector}
-        </label>
-        <select
-          id="musicgen-model"
-          value={selectedModel.id}
-          onChange={(event) => {
-            const nextModel =
-              SUPPORTED_LOCAL_MODELS.find(
-                (model) => model.id === event.target.value,
-              ) ?? SUPPORTED_LOCAL_MODELS[0];
-            setSelectedModelId(nextModel.id);
-          }}
-          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+      <section className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200/70 bg-white/80 p-2 shadow-sm backdrop-blur dark:border-slate-700/70 dark:bg-slate-900/80">
+        <Button
+          className="w-full"
+          variant={studioTab === "create" ? "default" : "outline"}
+          onClick={() => setStudioTab("create")}
         >
-          {SUPPORTED_LOCAL_MODELS.map((model) => (
-            <option key={model.id} value={model.id}>
-              {model.label}
-            </option>
-          ))}
-        </select>
-        {modelCacheHint && (
-          <p className="text-xs text-slate-600 dark:text-slate-300">
-            {modelCacheHint}
-          </p>
-        )}
+          {ui.createTab}
+        </Button>
+        <Button
+          className="w-full"
+          variant={studioTab === "visualizer" ? "default" : "outline"}
+          onClick={() => setStudioTab("visualizer")}
+        >
+          {ui.visualizerTab}
+        </Button>
       </section>
 
-      <QualityPresetPanel
-        ui={ui}
-        language={language}
-        musicGenQualityPreset={musicGenQualityPreset}
-        onChangePreset={setMusicGenQualityPreset}
-      />
-
-      <section className="space-y-4 rounded-2xl border border-slate-200/70 bg-white/90 p-4 shadow-md sm:p-5 dark:border-slate-700/70 dark:bg-slate-900/85">
-        {effectiveMode === "live-jam" && isLiveEnabled && (
-          <LiveJamPanel
+      {studioTab === "create" ? (
+        <>
+          <GenerationModeSwitch
             ui={ui}
-            liveNotes={liveNotes}
-            liveDurationSeconds={liveDurationSeconds}
-            liveFailure={liveFailure}
-            muted={muted}
-            onChangeNotes={setLiveNotes}
-            onChangeDuration={setLiveDurationSeconds}
-            onChangeFailure={setLiveFailure}
-            onEnable={() => {
-              void handleLiveEnable();
-            }}
-            onToggleMute={() => setMuted((current) => !current)}
-            onStop={handleLiveStop}
+            isLiveEnabled={isLiveEnabled}
+            isChatEnabled={isChatEnabled}
+            effectiveMode={effectiveMode}
+            onSetMode={setMode}
           />
-        )}
 
-        {effectiveMode === "chat-generate" && isChatEnabled && (
-          <ChatGeneratePanel
+          <section className="space-y-2 rounded-2xl border border-slate-200/70 bg-white/80 p-4 shadow-sm backdrop-blur sm:p-5 dark:border-slate-700/70 dark:bg-slate-900/80">
+            <label htmlFor="musicgen-model" className="text-sm font-medium">
+              {ui.modelSelector}
+            </label>
+            <select
+              id="musicgen-model"
+              value={selectedModel.id}
+              onChange={(event) => {
+                const nextModel =
+                  SUPPORTED_LOCAL_MODELS.find(
+                    (model) => model.id === event.target.value,
+                  ) ?? SUPPORTED_LOCAL_MODELS[0];
+                setSelectedModelId(nextModel.id);
+              }}
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+            >
+              {SUPPORTED_LOCAL_MODELS.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.label}
+                </option>
+              ))}
+            </select>
+            {modelCacheHint && (
+              <p className="text-xs text-slate-600 dark:text-slate-300">
+                {modelCacheHint}
+              </p>
+            )}
+          </section>
+
+          <QualityPresetPanel
             ui={ui}
-            chatPrompt={chatPrompt}
-            chatDurationSeconds={chatDurationSeconds}
-            effectiveChatDurationMax={effectiveChatDurationMax}
-            smartChatDurationCap={smartChatDurationCap}
-            chatDurationOverride={chatDurationOverride}
-            chatBpm={chatBpm}
-            chatInstrumentalOnly={chatInstrumentalOnly}
-            chatIncludeDrums={chatIncludeDrums}
-            chatFailure={chatFailure}
-            validationError={validationError}
-            status={state.status}
-            onSubmit={handleChatSubmit}
-            onChangePrompt={setChatPrompt}
-            onChangeDuration={setChatDurationSeconds}
-            onToggleDurationOverride={handleToggleDurationOverride}
-            onChangeBpm={setChatBpm}
-            onChangeInstrumentalOnly={setChatInstrumentalOnly}
-            onChangeIncludeDrums={setChatIncludeDrums}
-            onChangeFailure={setChatFailure}
+            language={language}
+            musicGenQualityPreset={musicGenQualityPreset}
+            onChangePreset={setMusicGenQualityPreset}
           />
-        )}
-      </section>
 
-      <GenerationStatusPanel ui={ui} statusLabel={statusLabel} />
+          <section className="space-y-4 rounded-2xl border border-slate-200/70 bg-white/90 p-4 shadow-md sm:p-5 dark:border-slate-700/70 dark:bg-slate-900/85">
+            {effectiveMode === "live-jam" && isLiveEnabled && (
+              <LiveJamPanel
+                ui={ui}
+                liveNotes={liveNotes}
+                liveDurationSeconds={liveDurationSeconds}
+                liveFailure={liveFailure}
+                muted={muted}
+                onChangeNotes={setLiveNotes}
+                onChangeDuration={setLiveDurationSeconds}
+                onChangeFailure={setLiveFailure}
+                onEnable={() => {
+                  void handleLiveEnable();
+                }}
+                onToggleMute={() => setMuted((current) => !current)}
+                onStop={handleLiveStop}
+              />
+            )}
 
-      {state.error && (
-        <section
-          className="rounded-2xl border border-red-300 bg-red-50 p-3 text-red-800 shadow-sm"
-          role="alert"
-        >
-          <strong>{ui.error}:</strong>{" "}
-          {localizeErrorMessage(state.error.message, language)}
-        </section>
+            {effectiveMode === "chat-generate" && isChatEnabled && (
+              <ChatGeneratePanel
+                ui={ui}
+                chatPrompt={chatPrompt}
+                chatDurationSeconds={chatDurationSeconds}
+                effectiveChatDurationMax={effectiveChatDurationMax}
+                smartChatDurationCap={smartChatDurationCap}
+                chatDurationOverride={chatDurationOverride}
+                chatBpm={chatBpm}
+                chatInstrumentalOnly={chatInstrumentalOnly}
+                chatIncludeDrums={chatIncludeDrums}
+                chatFailure={chatFailure}
+                validationError={validationError}
+                status={state.status}
+                onSubmit={handleChatSubmit}
+                onChangePrompt={setChatPrompt}
+                onChangeDuration={setChatDurationSeconds}
+                onToggleDurationOverride={handleToggleDurationOverride}
+                onChangeBpm={setChatBpm}
+                onChangeInstrumentalOnly={setChatInstrumentalOnly}
+                onChangeIncludeDrums={setChatIncludeDrums}
+                onChangeFailure={setChatFailure}
+              />
+            )}
+          </section>
+
+          <GenerationStatusPanel ui={ui} statusLabel={statusLabel} />
+
+          {state.error && (
+            <section
+              className="rounded-2xl border border-red-300 bg-red-50 p-3 text-red-800 shadow-sm"
+              role="alert"
+            >
+              <strong>{ui.error}:</strong>{" "}
+              {localizeErrorMessage(state.error.message, language)}
+            </section>
+          )}
+
+          <GenerationTimelinePanel
+            ui={ui}
+            timeline={timeline}
+            timelineNotice={timelineNotice}
+            importInputRef={importInputRef}
+            playingId={playingId}
+            onImportClick={handleImportLibraryClick}
+            onImportChange={handleImportLibraryChange}
+            onExport={handleExportLibraryClick}
+            onDeleteAll={handleDeleteAllEntriesClick}
+            onDeleteEntry={handleDeleteEntryClick}
+            onTogglePreview={handleTogglePreview}
+          />
+        </>
+      ) : (
+        <AudioVisualizerPanel ui={ui} />
       )}
-
-      <GenerationTimelinePanel
-        ui={ui}
-        timeline={timeline}
-        timelineNotice={timelineNotice}
-        importInputRef={importInputRef}
-        playingId={playingId}
-        onImportClick={handleImportLibraryClick}
-        onImportChange={handleImportLibraryChange}
-        onExport={handleExportLibraryClick}
-        onDeleteAll={handleDeleteAllEntriesClick}
-        onDeleteEntry={handleDeleteEntryClick}
-        onTogglePreview={handleTogglePreview}
-      />
-
-      <AudioVisualizerPanel ui={ui} timeline={timeline} />
     </main>
   );
 }

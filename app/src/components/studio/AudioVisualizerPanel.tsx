@@ -1,104 +1,202 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Button } from "@/components/ui/button";
 import type { UiText } from "@/features/studio/types";
-import type { GenerationResult } from "@/lib/types";
 
 interface AudioVisualizerPanelProps {
   ui: UiText;
-  timeline: GenerationResult[];
 }
 
 type VisualizerMode = "2d" | "3d";
+type InputSource = {
+  id: string;
+  deviceId: string;
+  label: string;
+};
+type Visual2DStyle = "bars" | "mirror" | "radial";
+type VisualPalette = "neon" | "sunset" | "ocean" | "mono";
+
+const PALETTES: Record<
+  VisualPalette,
+  { background: string; primaryHue: number; accent: string; line: string }
+> = {
+  neon: {
+    background: "rgba(2, 3, 10, 0.25)",
+    primaryHue: 192,
+    accent: "#7df9ff",
+    line: "rgba(236, 254, 255, 0.95)",
+  },
+  sunset: {
+    background: "rgba(20, 6, 8, 0.28)",
+    primaryHue: 8,
+    accent: "#ffb37a",
+    line: "rgba(255, 226, 190, 0.95)",
+  },
+  ocean: {
+    background: "rgba(0, 14, 20, 0.25)",
+    primaryHue: 184,
+    accent: "#6af5e6",
+    line: "rgba(192, 252, 246, 0.95)",
+  },
+  mono: {
+    background: "rgba(16, 16, 16, 0.26)",
+    primaryHue: 0,
+    accent: "#f3f4f6",
+    line: "rgba(249, 250, 251, 0.95)",
+  },
+};
 
 export function AudioVisualizerPanel({
   ui,
-  timeline,
 }: AudioVisualizerPanelProps): React.JSX.Element {
-  const audioEntries = useMemo(
-    () => timeline.filter((entry) => Boolean(entry.audio?.url)),
-    [timeline],
-  );
   const [mode, setMode] = useState<VisualizerMode>("2d");
-  const [selectedEntryId, setSelectedEntryId] = useState<string>(
-    audioEntries[0]?.id ?? "",
-  );
-
-  const selectedEntry =
-    audioEntries.find((entry) => entry.id === selectedEntryId) ??
-    audioEntries[0] ??
-    null;
-
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [style2d, setStyle2d] = useState<Visual2DStyle>("bars");
+  const [palette, setPalette] = useState<VisualPalette>("neon");
+  const [sensitivity, setSensitivity] = useState(1.25);
+  const [smoothing, setSmoothing] = useState(0.82);
+  const [fftSize, setFftSize] = useState<512 | 1024 | 2048>(1024);
+  const [pointDensity, setPointDensity] = useState(1200);
+  const [motionSpeed, setMotionSpeed] = useState(1);
+  const [showWaveform, setShowWaveform] = useState(true);
+  const [devices, setDevices] = useState<InputSource[]>([]);
+  const [selectedSourceId, setSelectedSourceId] = useState<string>("");
+  const [captureError, setCaptureError] = useState<string | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
   const canvas2dRef = useRef<HTMLCanvasElement | null>(null);
   const canvas3dHostRef = useRef<HTMLDivElement | null>(null);
   const animationRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
-  useEffect(() => {
-    if (!selectedEntry) {
+  const refreshAudioInputs = useCallback(async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      setDevices([]);
       return;
     }
 
-    setSelectedEntryId((current) =>
-      current.length > 0 && audioEntries.some((entry) => entry.id === current)
-        ? current
-        : selectedEntry.id,
-    );
-  }, [audioEntries, selectedEntry]);
+    const availableInputs = (await navigator.mediaDevices.enumerateDevices())
+      .filter((device) => device.kind === "audioinput")
+      .map((device, index) => ({
+        id: `${device.deviceId || "default-device"}-${index}`,
+        deviceId: device.deviceId,
+        label: device.label || `Audio input ${index + 1}`,
+      }));
 
-  useEffect(() => {
-    const audioElement = audioRef.current;
-    if (!audioElement) {
+    setDevices(availableInputs);
+    setSelectedSourceId((current) => {
+      if (current && availableInputs.some((device) => device.id === current)) {
+        return current;
+      }
+      return availableInputs[0]?.id ?? "";
+    });
+  }, []);
+
+  const stopCapture = useCallback(() => {
+    if (sourceNodeRef.current) {
+      sourceNodeRef.current.disconnect();
+      sourceNodeRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setIsCapturing(false);
+  }, []);
+
+  const startCapture = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCaptureError(ui.visualizerInputUnavailable);
       return;
     }
 
-    const ensureAudioGraph = async () => {
+    try {
+      setCaptureError(null);
+      stopCapture();
+
       if (!audioContextRef.current) {
         audioContextRef.current = new AudioContext();
       }
 
       if (!analyserRef.current) {
         analyserRef.current = audioContextRef.current.createAnalyser();
-        analyserRef.current.fftSize = 1024;
-        analyserRef.current.smoothingTimeConstant = 0.82;
       }
 
-      if (!sourceNodeRef.current) {
-        sourceNodeRef.current =
-          audioContextRef.current.createMediaElementSource(audioElement);
-        sourceNodeRef.current.connect(analyserRef.current);
-        analyserRef.current.connect(audioContextRef.current.destination);
+      if (analyserRef.current.fftSize !== fftSize) {
+        analyserRef.current.fftSize = fftSize;
       }
-    };
+      analyserRef.current.smoothingTimeConstant = smoothing;
 
-    const handlePlay = async () => {
-      await ensureAudioGraph();
-      if (audioContextRef.current?.state === "suspended") {
+      const selectedSource = devices.find(
+        (source) => source.id === selectedSourceId,
+      );
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: selectedSource?.deviceId
+          ? { deviceId: { exact: selectedSource.deviceId } }
+          : true,
+        video: false,
+      });
+
+      streamRef.current = stream;
+      sourceNodeRef.current =
+        audioContextRef.current.createMediaStreamSource(stream);
+      sourceNodeRef.current.connect(analyserRef.current);
+
+      if (audioContextRef.current.state === "suspended") {
         await audioContextRef.current.resume();
       }
-    };
 
-    audioElement.addEventListener("play", handlePlay);
+      setIsCapturing(true);
+      await refreshAudioInputs();
+    } catch {
+      setCaptureError(ui.visualizerCaptureError);
+      stopCapture();
+    }
+  }, [
+    devices,
+    fftSize,
+    refreshAudioInputs,
+    selectedSourceId,
+    smoothing,
+    stopCapture,
+    ui.visualizerCaptureError,
+    ui.visualizerInputUnavailable,
+  ]);
+
+  useEffect(() => {
+    void refreshAudioInputs();
+
+    if (navigator.mediaDevices?.addEventListener) {
+      navigator.mediaDevices.addEventListener(
+        "devicechange",
+        refreshAudioInputs,
+      );
+    }
 
     return () => {
-      audioElement.removeEventListener("play", handlePlay);
+      if (navigator.mediaDevices?.removeEventListener) {
+        navigator.mediaDevices.removeEventListener(
+          "devicechange",
+          refreshAudioInputs,
+        );
+      }
     };
-  }, [selectedEntry?.id]);
+  }, [refreshAudioInputs]);
 
   useEffect(() => {
     const analyser = analyserRef.current;
     const canvas = canvas2dRef.current;
     const host = canvas3dHostRef.current;
 
-    if (!analyser || (!canvas && !host)) {
+    if (!analyser || !isCapturing || (!canvas && !host)) {
       return;
     }
 
     const frequencyData = new Uint8Array(analyser.frequencyBinCount);
     const timeData = new Uint8Array(analyser.frequencyBinCount);
+
+    const paletteConfig = PALETTES[palette];
 
     let renderer: THREE.WebGLRenderer | null = null;
     let scene: THREE.Scene | null = null;
@@ -135,7 +233,7 @@ export function AudioVisualizerPanel({
       orb = new THREE.Mesh(
         new THREE.IcosahedronGeometry(1.05, 5),
         new THREE.MeshStandardMaterial({
-          color: "#4fd1ff",
+          color: paletteConfig.accent,
           emissive: "#112640",
           metalness: 0.25,
           roughness: 0.2,
@@ -147,7 +245,7 @@ export function AudioVisualizerPanel({
       ring = new THREE.Mesh(
         new THREE.TorusKnotGeometry(1.45, 0.09, 260, 22),
         new THREE.MeshStandardMaterial({
-          color: "#f45bf5",
+          color: palette === "mono" ? "#d1d5db" : "#f45bf5",
           emissive: "#35113f",
           metalness: 0.2,
           roughness: 0.35,
@@ -155,7 +253,7 @@ export function AudioVisualizerPanel({
       );
       scene.add(ring);
 
-      const pointCount = 1000;
+      const pointCount = pointDensity;
       const positions = new Float32Array(pointCount * 3);
       for (let i = 0; i < pointCount; i += 1) {
         const r = 2.4 + Math.random() * 0.8;
@@ -176,7 +274,7 @@ export function AudioVisualizerPanel({
         pointsGeometry,
         new THREE.PointsMaterial({
           size: 0.02,
-          color: "#a8ecff",
+          color: paletteConfig.accent,
           transparent: true,
           opacity: 0.9,
         }),
@@ -190,13 +288,20 @@ export function AudioVisualizerPanel({
 
       const bass =
         frequencyData.slice(0, 28).reduce((sum, value) => sum + value, 0) /
-        (28 * 255);
+        (28 * 255) *
+        sensitivity;
       const mids =
         frequencyData.slice(40, 140).reduce((sum, value) => sum + value, 0) /
-        (100 * 255);
+        (100 * 255) *
+        sensitivity;
       const treble =
         frequencyData.slice(180, 320).reduce((sum, value) => sum + value, 0) /
-        (140 * 255);
+        (140 * 255) *
+        sensitivity;
+
+      const clampedBass = Math.min(2.4, Math.max(0, bass));
+      const clampedMids = Math.min(2.4, Math.max(0, mids));
+      const clampedTreble = Math.min(2.4, Math.max(0, treble));
 
       if (mode === "2d" && canvas) {
         const context = canvas.getContext("2d");
@@ -208,39 +313,82 @@ export function AudioVisualizerPanel({
             canvas.height = height;
           }
 
-          context.fillStyle = "rgba(2, 3, 10, 0.22)";
+          context.fillStyle = paletteConfig.background;
           context.fillRect(0, 0, width, height);
 
-          const barCount = 72;
+          const barCount = style2d === "radial" ? 96 : 72;
           const gap = 3;
-          const barWidth = (width - gap * (barCount - 1)) / barCount;
-          for (let i = 0; i < barCount; i += 1) {
-            const bucket = Math.floor((i / barCount) * frequencyData.length);
-            const value = frequencyData[bucket] / 255;
-            const barHeight = Math.max(4, value * height * 0.9);
-            const x = i * (barWidth + gap);
-            const y = height - barHeight;
+          const barWidth = Math.max(1, (width - gap * (barCount - 1)) / barCount);
 
-            const hue = 190 + value * 120;
-            context.fillStyle = `hsla(${hue}, 92%, 62%, 0.92)`;
-            context.fillRect(x, y, barWidth, barHeight);
-          }
+          if (style2d === "radial") {
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const radius = Math.min(width, height) * 0.16;
 
-          context.lineWidth = 2;
-          context.strokeStyle = "rgba(236, 254, 255, 0.9)";
-          context.beginPath();
-          const stride = Math.max(1, Math.floor(timeData.length / width));
-          for (let i = 0; i < width; i += 1) {
-            const index = Math.min(timeData.length - 1, i * stride);
-            const normalized = (timeData[index] - 128) / 128;
-            const y = height * 0.55 + normalized * (height * 0.25);
-            if (i === 0) {
-              context.moveTo(i, y);
-            } else {
-              context.lineTo(i, y);
+            for (let i = 0; i < barCount; i += 1) {
+              const bucket = Math.floor((i / barCount) * frequencyData.length);
+              const value = (frequencyData[bucket] / 255) * sensitivity;
+              const angle = (i / barCount) * Math.PI * 2;
+              const lineLength = radius + value * Math.min(width, height) * 0.35;
+              const hue = paletteConfig.primaryHue + value * 120;
+
+              context.strokeStyle =
+                palette === "mono"
+                  ? `rgba(245, 245, 245, ${0.3 + value * 0.6})`
+                  : `hsla(${hue}, 96%, 62%, ${0.35 + value * 0.6})`;
+              context.lineWidth = 2;
+              context.beginPath();
+              context.moveTo(
+                centerX + Math.cos(angle) * radius,
+                centerY + Math.sin(angle) * radius,
+              );
+              context.lineTo(
+                centerX + Math.cos(angle) * lineLength,
+                centerY + Math.sin(angle) * lineLength,
+              );
+              context.stroke();
+            }
+          } else {
+            for (let i = 0; i < barCount; i += 1) {
+              const bucket = Math.floor((i / barCount) * frequencyData.length);
+              const value = (frequencyData[bucket] / 255) * sensitivity;
+              const barHeight = Math.max(4, value * height * 0.9);
+              const x = i * (barWidth + gap);
+              const y = style2d === "mirror" ? height / 2 - barHeight / 2 : height - barHeight;
+              const hue = paletteConfig.primaryHue + value * 120;
+
+              context.fillStyle =
+                palette === "mono"
+                  ? `rgba(245, 245, 245, ${0.3 + value * 0.6})`
+                  : `hsla(${hue}, 92%, 62%, ${0.3 + value * 0.62})`;
+              context.fillRect(x, y, barWidth, barHeight);
+
+              if (style2d === "mirror") {
+                context.fillRect(x, height / 2, barWidth, barHeight / 2);
+              }
             }
           }
-          context.stroke();
+
+          if (showWaveform) {
+            context.lineWidth = 2;
+            context.strokeStyle = paletteConfig.line;
+            context.beginPath();
+            const stride = Math.max(1, Math.floor(timeData.length / width));
+            for (let i = 0; i < width; i += 1) {
+              const index = Math.min(timeData.length - 1, i * stride);
+              const normalized = (timeData[index] - 128) / 128;
+              const y =
+                style2d === "mirror"
+                  ? height / 2 + normalized * (height * 0.22)
+                  : height * 0.55 + normalized * (height * 0.25);
+              if (i === 0) {
+                context.moveTo(i, y);
+              } else {
+                context.lineTo(i, y);
+              }
+            }
+            context.stroke();
+          }
         }
       }
 
@@ -253,22 +401,23 @@ export function AudioVisualizerPanel({
         ring &&
         points
       ) {
-        const pulse = 1 + bass * 0.75;
+        const speed = motionSpeed;
+        const pulse = 1 + clampedBass * 0.75;
         orb.scale.setScalar(pulse);
-        orb.rotation.x += 0.006 + mids * 0.02;
-        orb.rotation.y += 0.009 + treble * 0.03;
+        orb.rotation.x += (0.006 + clampedMids * 0.02) * speed;
+        orb.rotation.y += (0.009 + clampedTreble * 0.03) * speed;
 
-        ring.rotation.x -= 0.004 + treble * 0.02;
-        ring.rotation.z += 0.007 + bass * 0.02;
-        ring.scale.setScalar(1 + mids * 0.3);
+        ring.rotation.x -= (0.004 + clampedTreble * 0.02) * speed;
+        ring.rotation.z += (0.007 + clampedBass * 0.02) * speed;
+        ring.scale.setScalar(1 + clampedMids * 0.3);
 
-        points.rotation.y += 0.002 + treble * 0.009;
-        points.rotation.x -= 0.001 + bass * 0.006;
+        points.rotation.y += (0.002 + clampedTreble * 0.009) * speed;
+        points.rotation.x -= (0.001 + clampedBass * 0.006) * speed;
         const pointsMaterial = points.material as THREE.PointsMaterial;
-        pointsMaterial.size = 0.02 + mids * 0.045;
-        pointsMaterial.opacity = 0.55 + bass * 0.4;
+        pointsMaterial.size = 0.02 + clampedMids * 0.045;
+        pointsMaterial.opacity = 0.55 + clampedBass * 0.4;
 
-        camera.position.z = 4.4 - bass * 0.8;
+        camera.position.z = 4.4 - clampedBass * 0.8;
         renderer.render(scene, camera);
       }
 
@@ -316,15 +465,30 @@ export function AudioVisualizerPanel({
         (points.material as THREE.Material).dispose();
       }
     };
-  }, [mode, selectedEntry?.id]);
+  }, [
+    fftSize,
+    isCapturing,
+    mode,
+    motionSpeed,
+    palette,
+    pointDensity,
+    sensitivity,
+    showWaveform,
+    style2d,
+  ]);
 
   useEffect(() => {
     return () => {
+      stopCapture();
       if (audioContextRef.current) {
         void audioContextRef.current.close();
       }
     };
-  }, []);
+  }, [stopCapture]);
+
+  const hasMediaDevicesSupport =
+    typeof navigator !== "undefined" &&
+    Boolean(navigator.mediaDevices?.getUserMedia);
 
   return (
     <section className="space-y-3 rounded-2xl border border-slate-200/70 bg-white/90 p-4 shadow-md dark:border-slate-700/70 dark:bg-slate-900/85">
@@ -348,37 +512,183 @@ export function AudioVisualizerPanel({
         </div>
       </div>
 
-      {audioEntries.length === 0 ? (
+      {!hasMediaDevicesSupport ? (
+        <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+          {ui.visualizerInputUnavailable}
+        </p>
+      ) : (
+        <>
+          <label
+            htmlFor="visualizer-source-select"
+            className="text-sm font-medium"
+          >
+            {ui.visualizerTrack}
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <select
+              id="visualizer-source-select"
+              value={selectedSourceId}
+              onChange={(event) => setSelectedSourceId(event.target.value)}
+              className="min-w-[220px] flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+            >
+              {devices.map((device) => (
+                <option key={device.id} value={device.id}>
+                  {device.label}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void refreshAudioInputs()}
+            >
+              {ui.visualizerRefreshSources}
+            </Button>
+            {isCapturing ? (
+              <Button size="sm" variant="secondary" onClick={stopCapture}>
+                {ui.visualizerStop}
+              </Button>
+            ) : (
+              <Button size="sm" onClick={() => void startCapture()}>
+                {ui.visualizerStart}
+              </Button>
+            )}
+          </div>
+
+          <section className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200/70 bg-slate-50/70 p-3 sm:grid-cols-2 lg:grid-cols-3 dark:border-slate-700/70 dark:bg-slate-900/60">
+            <p className="col-span-full text-sm font-medium">
+              {ui.visualizerOptions}
+            </p>
+
+            <label className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
+              <span>{ui.visualizer2dStyle}</span>
+              <select
+                value={style2d}
+                onChange={(event) => setStyle2d(event.target.value as Visual2DStyle)}
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+              >
+                <option value="bars">Bars</option>
+                <option value="mirror">Mirror</option>
+                <option value="radial">Radial</option>
+              </select>
+            </label>
+
+            <label className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
+              <span>{ui.visualizerPalette}</span>
+              <select
+                value={palette}
+                onChange={(event) => setPalette(event.target.value as VisualPalette)}
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+              >
+                <option value="neon">Neon</option>
+                <option value="sunset">Sunset</option>
+                <option value="ocean">Ocean</option>
+                <option value="mono">Monochrome</option>
+              </select>
+            </label>
+
+            <label className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
+              <span>{ui.visualizerFftSize}</span>
+              <select
+                value={fftSize}
+                onChange={(event) => setFftSize(Number(event.target.value) as 512 | 1024 | 2048)}
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
+              >
+                <option value={512}>512</option>
+                <option value={1024}>1024</option>
+                <option value={2048}>2048</option>
+              </select>
+            </label>
+
+            <label className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
+              <span>
+                {ui.visualizerSensitivity}: {sensitivity.toFixed(2)}
+              </span>
+              <input
+                type="range"
+                min={0.6}
+                max={2.6}
+                step={0.05}
+                value={sensitivity}
+                onChange={(event) => setSensitivity(Number(event.target.value))}
+                className="w-full"
+              />
+            </label>
+
+            <label className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
+              <span>
+                {ui.visualizerSmoothing}: {smoothing.toFixed(2)}
+              </span>
+              <input
+                type="range"
+                min={0.45}
+                max={0.95}
+                step={0.01}
+                value={smoothing}
+                onChange={(event) => setSmoothing(Number(event.target.value))}
+                className="w-full"
+              />
+            </label>
+
+            <label className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
+              <span>
+                {ui.visualizerPointDensity}: {pointDensity}
+              </span>
+              <input
+                type="range"
+                min={600}
+                max={2200}
+                step={100}
+                value={pointDensity}
+                onChange={(event) => setPointDensity(Number(event.target.value))}
+                className="w-full"
+              />
+            </label>
+
+            <label className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
+              <span>
+                {ui.visualizerMotionSpeed}: {motionSpeed.toFixed(2)}
+              </span>
+              <input
+                type="range"
+                min={0.4}
+                max={2.5}
+                step={0.05}
+                value={motionSpeed}
+                onChange={(event) => setMotionSpeed(Number(event.target.value))}
+                className="w-full"
+              />
+            </label>
+
+            <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={showWaveform}
+                onChange={(event) => setShowWaveform(event.target.checked)}
+                className="h-4 w-4"
+              />
+              <span>{ui.visualizerShowWaveform}</span>
+            </label>
+          </section>
+
+          <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
+            {isCapturing ? ui.visualizerStateListening : ui.visualizerStateStopped}
+          </p>
+        </>
+      )}
+
+      {captureError ? (
+        <p className="rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-900 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-200">
+          {captureError}
+        </p>
+      ) : null}
+
+      {!isCapturing ? (
         <p className="rounded-md border border-slate-300 bg-slate-50 p-3 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
           {ui.visualizerNoAudio}
         </p>
       ) : (
         <>
-          <label htmlFor="visualizer-track" className="text-sm font-medium">
-            {ui.visualizerTrack}
-          </label>
-          <select
-            id="visualizer-track"
-            value={selectedEntry?.id ?? ""}
-            onChange={(event) => setSelectedEntryId(event.target.value)}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-          >
-            {audioEntries.map((entry, index) => (
-              <option key={entry.id} value={entry.id}>
-                {index + 1}. {entry.content.slice(0, 72)}
-              </option>
-            ))}
-          </select>
-
-          <audio
-            ref={audioRef}
-            controls
-            className="w-full"
-            src={selectedEntry?.audio?.url}
-          >
-            {ui.browserNoAudio}
-          </audio>
-
           <p className="text-xs text-slate-600 dark:text-slate-300">
             {ui.visualizerHint}
           </p>
