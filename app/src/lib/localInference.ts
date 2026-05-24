@@ -62,6 +62,7 @@ const MUSICGEN_GUIDANCE_SCALE: Record<MusicGenQualityPreset, number> = {
 let cachedMusicGen: CachedMusicGen | null = null;
 let cachedModelName: string | null = null;
 let cachedTransformersModulePromise: Promise<TransformersModule> | null = null;
+let transformersFetchPatched = false;
 
 async function getTransformersModule(): Promise<TransformersModule> {
   if (!cachedTransformersModulePromise) {
@@ -122,12 +123,42 @@ async function getMusicGen(modelName: string): Promise<CachedMusicGen> {
     remoteHost?: string;
     remotePathTemplate?: string;
   };
+  const envWithFetch = env as unknown as {
+    fetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+  };
 
   if (typeof globalThis !== "undefined" && "location" in globalThis) {
     const location = (globalThis as { location?: Location }).location;
     if (location?.origin) {
       envWithRemoteHost.remoteHost = `${location.origin}/hf-v2/`;
       envWithRemoteHost.remotePathTemplate = "{model}/resolve/{revision}/";
+
+      if (!transformersFetchPatched && typeof fetch === "function") {
+        const baseFetch =
+          typeof envWithFetch.fetch === "function"
+            ? envWithFetch.fetch
+            : fetch.bind(globalThis);
+        const localOrigin = location.origin;
+
+        envWithFetch.fetch = (input, init) => {
+          const requestUrl =
+            typeof input === "string"
+              ? input
+              : input instanceof URL
+                ? input.toString()
+                : input.url;
+          const isProxyModelRequest =
+            requestUrl.startsWith("/hf-v2/") ||
+            requestUrl.startsWith(`${localOrigin}/hf-v2/`);
+
+          return baseFetch(input, {
+            ...init,
+            cache: isProxyModelRequest ? "no-store" : init?.cache,
+          });
+        };
+
+        transformersFetchPatched = true;
+      }
     }
   }
 
