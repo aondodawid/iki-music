@@ -18,6 +18,8 @@ type UiLanguage = "pl" | "en";
 const MUSICGEN_QUALITY_STORAGE_KEY = "iki-music/musicgen-quality-preset";
 const THEME_STORAGE_KEY = "iki-music/theme";
 const LANGUAGE_STORAGE_KEY = "iki-music/language";
+const CHAT_DURATION_OVERRIDE_STORAGE_KEY = "iki-music/chat-duration-override";
+const HARD_MAX_CHAT_DURATION_SECONDS = 120;
 
 interface UiText {
   appTitle: string;
@@ -58,6 +60,9 @@ interface UiText {
   generatedClipDuration: (seconds: number) => string;
   chatDurationAria: string;
   chatDurationHint: string;
+  chatSmartCapInfo: (cap: number) => string;
+  unlockExtendedDuration: string;
+  restoreSmartCap: string;
   targetBpm: string;
   chatOptions: string;
   instrumentalOnly: string;
@@ -119,6 +124,10 @@ const UI_TEXT: Record<UiLanguage, UiText> = {
     chatDurationAria: "Chat generated duration (seconds)",
     chatDurationHint:
       "Long clips may take several minutes and can fail on weaker devices.",
+    chatSmartCapInfo: (cap) =>
+      `Smart cap detected for this device: ${cap}s. You can still unlock 120s manually.`,
+    unlockExtendedDuration: "Unlock 120s",
+    restoreSmartCap: "Use smart cap",
     targetBpm: "Target BPM (optional, 60-200)",
     chatOptions: "Chat generation options",
     instrumentalOnly: "Instrumental only",
@@ -179,6 +188,10 @@ const UI_TEXT: Record<UiLanguage, UiText> = {
     chatDurationAria: "Dlugosc utworu z czatu (sekundy)",
     chatDurationHint:
       "Dluzsze klipy moga generowac sie kilka minut i moga nie dzialac stabilnie na slabszych urzadzeniach.",
+    chatSmartCapInfo: (cap) =>
+      `Wykryto smart cap dla tego urzadzenia: ${cap}s. Nadal mozesz recznie odblokowac 120s.`,
+    unlockExtendedDuration: "Odblokuj 120s",
+    restoreSmartCap: "Uzyj smart cap",
     targetBpm: "Docelowe BPM (opcjonalnie, 60-200)",
     chatOptions: "Opcje generowania czatu",
     instrumentalOnly: "Tylko instrumental",
@@ -269,6 +282,41 @@ function readStoredLanguage(): UiLanguage {
   return browserLanguage.startsWith("pl") ? "pl" : "en";
 }
 
+function readStoredChatDurationOverride(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return (
+    window.localStorage.getItem(CHAT_DURATION_OVERRIDE_STORAGE_KEY) === "1"
+  );
+}
+
+function detectSmartChatDurationCap(): number {
+  if (typeof window === "undefined") {
+    return 60;
+  }
+
+  const navigatorWithMemory = window.navigator as Navigator & {
+    deviceMemory?: number;
+  };
+  const memory = navigatorWithMemory.deviceMemory ?? 4;
+  const cores = window.navigator.hardwareConcurrency ?? 4;
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(
+    window.navigator.userAgent,
+  );
+
+  if (isMobile || memory <= 4 || cores <= 4) {
+    return 30;
+  }
+
+  if (memory <= 8 || cores <= 8) {
+    return 60;
+  }
+
+  return HARD_MAX_CHAT_DURATION_SECONDS;
+}
+
 function localizeErrorMessage(message: string, language: UiLanguage): string {
   const ui = UI_TEXT[language];
 
@@ -314,6 +362,14 @@ function App() {
     "Create a mellow lo-fi guitar loop",
   );
   const [chatDurationSeconds, setChatDurationSeconds] = useState(6);
+  const [chatDurationOverride, setChatDurationOverride] = useState(() =>
+    import.meta.env.MODE === "test" ? false : readStoredChatDurationOverride(),
+  );
+  const [smartChatDurationCap] = useState(() =>
+    import.meta.env.MODE === "test"
+      ? HARD_MAX_CHAT_DURATION_SECONDS
+      : detectSmartChatDurationCap(),
+  );
   const [chatBpm, setChatBpm] = useState("120");
   const [chatInstrumentalOnly, setChatInstrumentalOnly] = useState(true);
   const [chatIncludeDrums, setChatIncludeDrums] = useState(true);
@@ -471,8 +527,28 @@ function App() {
   const selectedPresetInfo =
     MUSICGEN_QUALITY_PRESET_INFO[language][musicGenQualityPreset];
   const defaultClipSeconds = 6;
+  const effectiveChatDurationMax = chatDurationOverride
+    ? HARD_MAX_CHAT_DURATION_SECONDS
+    : smartChatDurationCap;
   const selectedPresetTokens =
     selectedPresetInfo.tokensPerSecond * defaultClipSeconds;
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        CHAT_DURATION_OVERRIDE_STORAGE_KEY,
+        chatDurationOverride ? "1" : "0",
+      );
+    }
+  }, [chatDurationOverride]);
+
+  useEffect(() => {
+    setChatDurationSeconds((currentSeconds) =>
+      currentSeconds > effectiveChatDurationMax
+        ? effectiveChatDurationMax
+        : currentSeconds,
+    );
+  }, [effectiveChatDurationMax]);
 
   async function handleLiveEnable() {
     setValidationError(null);
@@ -857,7 +933,7 @@ function App() {
                 id="chat-duration"
                 type="range"
                 min={2}
-                max={120}
+                max={effectiveChatDurationMax}
                 step={1}
                 value={chatDurationSeconds}
                 onChange={(event) =>
@@ -868,6 +944,26 @@ function App() {
               <p className="text-xs text-slate-600 dark:text-slate-300">
                 {ui.chatDurationHint}
               </p>
+              {smartChatDurationCap < HARD_MAX_CHAT_DURATION_SECONDS && (
+                <div className="flex flex-col gap-2 rounded-md border border-cyan-200 bg-cyan-50 p-2 text-xs text-cyan-900 dark:border-cyan-700/60 dark:bg-cyan-900/20 dark:text-cyan-100">
+                  <p>{ui.chatSmartCapInfo(smartChatDurationCap)}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto"
+                    onClick={() =>
+                      setChatDurationOverride(
+                        (currentOverride) => !currentOverride,
+                      )
+                    }
+                  >
+                    {chatDurationOverride
+                      ? ui.restoreSmartCap
+                      : ui.unlockExtendedDuration}
+                  </Button>
+                </div>
+              )}
               <label htmlFor="chat-bpm" className="text-sm font-medium">
                 {ui.targetBpm}
               </label>
