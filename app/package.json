@@ -10,8 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy:wrangler": "npm run build && wrangler deploy",
-    "wrangler:check": "wrangler deploy --dry-run"
+    "deploy:wrangler": "npm run build && wrangler deploy --assets ./dist",
+    "wrangler:check": "wrangler deploy --dry-run --assets ./dist"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.9",
