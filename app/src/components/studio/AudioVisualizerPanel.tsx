@@ -287,16 +287,16 @@ export function AudioVisualizerPanel({
       analyser.getByteTimeDomainData(timeData);
 
       const bass =
-        frequencyData.slice(0, 28).reduce((sum, value) => sum + value, 0) /
-        (28 * 255) *
+        (frequencyData.slice(0, 28).reduce((sum, value) => sum + value, 0) /
+          (28 * 255)) *
         sensitivity;
       const mids =
-        frequencyData.slice(40, 140).reduce((sum, value) => sum + value, 0) /
-        (100 * 255) *
+        (frequencyData.slice(40, 140).reduce((sum, value) => sum + value, 0) /
+          (100 * 255)) *
         sensitivity;
       const treble =
-        frequencyData.slice(180, 320).reduce((sum, value) => sum + value, 0) /
-        (140 * 255) *
+        (frequencyData.slice(180, 320).reduce((sum, value) => sum + value, 0) /
+          (140 * 255)) *
         sensitivity;
 
       const clampedBass = Math.min(2.4, Math.max(0, bass));
@@ -318,7 +318,10 @@ export function AudioVisualizerPanel({
 
           const barCount = style2d === "radial" ? 96 : 72;
           const gap = 3;
-          const barWidth = Math.max(1, (width - gap * (barCount - 1)) / barCount);
+          const barWidth = Math.max(
+            1,
+            (width - gap * (barCount - 1)) / barCount,
+          );
 
           if (style2d === "radial") {
             const centerX = width / 2;
@@ -329,7 +332,8 @@ export function AudioVisualizerPanel({
               const bucket = Math.floor((i / barCount) * frequencyData.length);
               const value = (frequencyData[bucket] / 255) * sensitivity;
               const angle = (i / barCount) * Math.PI * 2;
-              const lineLength = radius + value * Math.min(width, height) * 0.35;
+              const lineLength =
+                radius + value * Math.min(width, height) * 0.35;
               const hue = paletteConfig.primaryHue + value * 120;
 
               context.strokeStyle =
@@ -354,7 +358,10 @@ export function AudioVisualizerPanel({
               const value = (frequencyData[bucket] / 255) * sensitivity;
               const barHeight = Math.max(4, value * height * 0.9);
               const x = i * (barWidth + gap);
-              const y = style2d === "mirror" ? height / 2 - barHeight / 2 : height - barHeight;
+              const y =
+                style2d === "mirror"
+                  ? height / 2 - barHeight / 2
+                  : height - barHeight;
               const hue = paletteConfig.primaryHue + value * 120;
 
               context.fillStyle =
@@ -529,7 +536,7 @@ export function AudioVisualizerPanel({
               id="visualizer-source-select"
               value={selectedSourceId}
               onChange={(event) => setSelectedSourceId(event.target.value)}
-              className="min-w-[220px] flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              className="min-w-55 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
             >
               {devices.map((device) => (
                 <option key={device.id} value={device.id}>
@@ -564,7 +571,9 @@ export function AudioVisualizerPanel({
               <span>{ui.visualizer2dStyle}</span>
               <select
                 value={style2d}
-                onChange={(event) => setStyle2d(event.target.value as Visual2DStyle)}
+                onChange={(event) =>
+                  setStyle2d(event.target.value as Visual2DStyle)
+                }
                 className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
               >
                 <option value="bars">Bars</option>
@@ -577,7 +586,9 @@ export function AudioVisualizerPanel({
               <span>{ui.visualizerPalette}</span>
               <select
                 value={palette}
-                onChange={(event) => setPalette(event.target.value as VisualPalette)}
+                onChange={(event) =>
+                  setPalette(event.target.value as VisualPalette)
+                }
                 className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
               >
                 <option value="neon">Neon</option>
@@ -591,7 +602,9 @@ export function AudioVisualizerPanel({
               <span>{ui.visualizerFftSize}</span>
               <select
                 value={fftSize}
-                onChange={(event) => setFftSize(Number(event.target.value) as 512 | 1024 | 2048)}
+                onChange={(event) =>
+                  setFftSize(Number(event.target.value) as 512 | 1024 | 2048)
+                }
                 className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-600 dark:bg-slate-800"
               >
                 <option value={512}>512</option>
@@ -640,7 +653,9 @@ export function AudioVisualizerPanel({
                 max={2200}
                 step={100}
                 value={pointDensity}
-                onChange={(event) => setPointDensity(Number(event.target.value))}
+                onChange={(event) =>
+                  setPointDensity(Number(event.target.value))
+                }
                 className="w-full"
               />
             </label>
@@ -672,7 +687,9 @@ export function AudioVisualizerPanel({
           </section>
 
           <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
-            {isCapturing ? ui.visualizerStateListening : ui.visualizerStateStopped}
+            {isCapturing
+              ? ui.visualizerStateListening
+              : ui.visualizerStateStopped}
           </p>
         </>
       )}

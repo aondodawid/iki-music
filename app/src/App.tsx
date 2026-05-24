@@ -153,9 +153,7 @@ function App() {
     import.meta.env.MODE === "test" ? "en" : readStoredLanguage(),
   );
   const [timelineNotice, setTimelineNotice] = useState<string | null>(null);
-  const [studioTab, setStudioTab] = useState<"create" | "visualizer">(
-    "create",
-  );
+  const [studioTab, setStudioTab] = useState<"create" | "visualizer">("create");
   const timelineRef = useRef<GenerationResult[]>([]);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
