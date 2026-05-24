@@ -108,3 +108,39 @@ Skill files are available in:
 Entry point:
 
 - `.github/skills/react-best-practices/SKILL.md`
+
+### `project-kickoff`
+
+Use when starting new feature work and you need a practical implementation plan:
+
+- scope and acceptance criteria
+- vertical slice planning
+- ordered implementation tasks
+- verification checklist
+
+### `code-review-playbook`
+
+Use for PR and branch review with bug-first prioritization:
+
+- correctness and regression checks
+- risk and security review
+- missing tests and edge cases
+- severity-ordered findings
+
+### `bug-triage`
+
+Use when a defect is reported and needs fast isolation:
+
+- deterministic reproduction
+- root cause narrowing
+- minimal safe fix
+- regression-proof verification
+
+### `release-readiness`
+
+Use before release or merge to stabilize delivery:
+
+- quality gates and validation evidence
+- release risks and mitigations
+- rollback notes
+- post-release watch items
